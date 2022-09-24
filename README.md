@@ -1,1 +1,1 @@
-# SDFT.jl
+# SDFT
