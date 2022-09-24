@@ -1,1 +1,1 @@
-# Stochastic_DFT
+# SDFT.jl
