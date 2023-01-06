@@ -11,18 +11,19 @@ function model_atomic(lattice::AbstractMatrix,
                       positions::Vector{<:AbstractVector};
                       extra_terms=[], kinetic_blowup=BlowupIdentity(), kwargs...)
     @assert !(:terms in keys(kwargs))
-    terms = [Kinetic(; blowup=kinetic_blowup),
-             AtomicLocal(),
-             AtomicNonlocal(),
-             Ewald(),
-             PspCorrection(),
+    terms = [Kinetic(; blowup = kinetic_blowup),
+            AtomicLocal(),
+            AtomicNonlocal(),
+            Ewald(),
+            PspCorrection(),
              extra_terms...]
- #   if :temperature in keys(kwargs) && kwargs[:temperature] != 0
- #        terms = [terms..., Entropy()]
- #   end
+#=
+    if :temperature in keys(kwargs) && kwargs[:temperature] != 0
+        terms = [terms..., Entropy()]
+    end
+=#    
     Model(lattice, atoms, positions; model_name="atomic", terms, kwargs...)
 end
-
 
 """
 Build a DFT model from the specified atoms, with the specified functionals.
@@ -53,7 +54,6 @@ function model_LDA(lattice::AbstractMatrix, atoms::Vector{<:Element},
     model_DFT(lattice, atoms, positions, [:lda_x, :lda_c_pw]; kwargs...)
 end
 
-
 """
 Build an PBE-GGA model from the specified atoms.
 DOI:10.1103/PhysRevLett.77.3865
@@ -62,7 +62,6 @@ function model_PBE(lattice::AbstractMatrix, atoms::Vector{<:Element},
                    positions::Vector{<:AbstractVector}; kwargs...)
     model_DFT(lattice, atoms, positions, [:gga_x_pbe, :gga_c_pbe]; kwargs...)
 end
-
 
 """
 Build a SCAN meta-GGA model from the specified atoms.
