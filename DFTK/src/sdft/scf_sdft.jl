@@ -51,8 +51,7 @@ function fixpoint_map(ρin)
 
         # Note that ρin is not the density of ψ, and the eigenvalues
         # are not the self-consistent ones, which makes this energy non-variational
-        energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ = ρin)
-        #, eigenvalues, εF)
+        energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ = ρin, εF = εF)
 
         """Compute the Fermi level by diagonalization"""
 		n_bands_compute = 100  # for convenience
@@ -72,7 +71,7 @@ function fixpoint_map(ρin)
 
         #Compute the energy of the new state
         if compute_consistent_energies
-           energies, _ = energy_hamiltonian(basis, ψ, occupation; ρ=ρout)
+           energies, _ = energy_hamiltonian(basis, ψ, occupation; ρ=ρout, εF=εF)
         end
 
         info = merge(info, (; energies))
@@ -159,10 +158,10 @@ Stochastic : Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
         # are not the self-consistent ones, which makes this energy non-variational
         
         if n_iter == 1  # since input ψ is nothing
-            energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ = ρin)
+            energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ = ρin, εF=εF)
         else 
             energies, ham = energy_hamiltonian(basis, ψ/sqrt(Ns), occupation;
-            ρ = ρin)
+            ρ = ρin, εF=εF)
         end    
        
 		"""Compute the Fermi level by diagonalization"""
