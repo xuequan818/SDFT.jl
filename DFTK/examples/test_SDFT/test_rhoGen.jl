@@ -1,8 +1,8 @@
 """
 Given a ham Single K point [0,0,0], we compare three different methods generate the density ρ: 
 1. eigenpaire
-2. Cheby polynomial method
-3. Stochastic method
+2. Chebyshev polynomial method
+3. Stochastic DFT method
 """
 
 using DFTK
@@ -61,9 +61,6 @@ basis = PlaneWaveBasis(model; Ecut, kgrid)
 occupation = nothing
 eigenvalues = nothing
 εF = nothing
-n_iter = 0
-energies = nothing
-ham = nothing
 
 energies, ham = energy_hamiltonian(basis, ψ, occupation;
 ρ = ρin, eigenvalues, εF)
@@ -83,8 +80,10 @@ occupation, εF = DFTK.compute_occupation(ham.basis, eigres.λ)
 """ ρout = rhoGenStoc """
 ψ, occupation, ρout_sdft = rhoGenStoc(ham, model, εF, 2000, 500)
 
-norm(ρout - ρout_ChebP) #/sqrt(basis.dvol) L2
+norm(ρout - ρout_ChebP) #/sqrt(basis.dvol) L2 
 norm(ρout_ChebP - ρout_sdft) #/sqrt(basis.dvol) 
+
+
 
 using Plots
 plot(ρout[:,16,1,1])
