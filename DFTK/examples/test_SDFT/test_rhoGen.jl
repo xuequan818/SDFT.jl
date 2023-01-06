@@ -30,10 +30,9 @@ positions = [C1, C2]
 C = ElementPsp(:C, psp=load_psp("hgh/pbe/c-q4"))
 atoms = [C, C]
 
-# run file "standard_models.jl" (remove the Entropy), since we don't solving eigenvalues, Entropy needs eigenvalues as input.
-
 model = model_PBE(lattice, atoms, positions; temperature)
-# 
+
+# run file "standard_models.jl" (remove the Entropy),i.e. the following function, since we don't solving eigenvalues, Entropy needs eigenvalues as input.
 function model_atomic(lattice::AbstractMatrix,
 	atoms::Vector{<:Element},
 	positions::Vector{<:AbstractVector};
@@ -78,14 +77,13 @@ occupation, εF = DFTK.compute_occupation(ham.basis, eigres.λ)
 """ρout = ∑_{i}^{band}f_i|ψ(x)|^2"""
 ρout = compute_density(ham.basis, eigres.X, occupation)
 
-""" ρout = rhoGenChebP """
+""" ρout = rhoGenChebyP """
 ψ, occupation, ρout_ChebP = rhoGenChebP(ham, model, εF, 2000)
 
 """ ρout = rhoGenStoc """
 ψ, occupation, ρout_sdft = rhoGenStoc(ham, model, εF, 2000, 500)
 
-
-norm(ρout - ρout_ChebP) #/sqrt(basis.dvol) 
+norm(ρout - ρout_ChebP) #/sqrt(basis.dvol) L2
 norm(ρout_ChebP - ρout_sdft) #/sqrt(basis.dvol) 
 
 using Plots
