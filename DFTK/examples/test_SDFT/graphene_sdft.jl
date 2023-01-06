@@ -1,5 +1,12 @@
-# For example singe layer Graphene 
-# Different three methods:  solving eigenpaires(DFTK); Chebyshev polynomial method; Stochastic method.
+"""For example singe layer Graphene 
+Different three methods: 
+solving eigenpaires(DFTK); 
+Chebyshev polynomial method; 
+Stochastic DFT method.
+scf:
+1. SimpleMixing + Anderson (m=10); (default stage in DFTK)
+2. SimpleMixing
+"""
 
 using DFTK
 using Unitful
@@ -9,7 +16,7 @@ using LinearAlgebra
 ## Define the convergence parameters (these should be increased in production)
 L = 20  # height of the simulation box
 kgrid = [1, 1, 1]
-#kgrid = [6, 6, 1]
+# kgrid = [6, 6, 1]
 Ecut = 15     
 temperature = 1e-3 #1e-2
 
@@ -28,7 +35,7 @@ atoms = [C, C]
 
 model = model_PBE(lattice, atoms, positions; temperature)
 
-# run file "standard_models.jl" (remove the Entropy),i.e. the following function, since we don't solving eigenvalues, Entropy needs eigenvalues as input.
+# run file "standard_models.jl" (remove the Entropy), i.e. the following function, since we don't solving eigenvalues, Entropy needs eigenvalues as input.
 function model_atomic(lattice::AbstractMatrix,
 	atoms::Vector{<:Element},
 	positions::Vector{<:AbstractVector};
@@ -51,6 +58,9 @@ model = model_PBE(lattice, atoms, positions; temperature)
 
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 
+
+"""scf: SimpleMixing + Anderson"""
+
 """solving eigenpaire"""
 scfres = self_consistent_field(basis)
 
@@ -58,5 +68,11 @@ scfres = self_consistent_field(basis)
 scfres_ChebyP = self_consistent_field_ChebyP(basis; M=500)
 
 """Stochastic DFT"""
-scfres_sdft = self_consistent_field_sdft(basis; M = 2000, Ns = 5000)   # M = 500, Ns = 20 works well
+scfres_sdft = self_consistent_field_sdft(basis; M = 500, Ns = 200)   # M = 500, Ns = 20 works well
 
+"""scf: SimpleMixing"""
+scfres_simplemixing = self_consistent_field(basis;  solver = scf_damping_solver())
+
+scfres_ChebyP_simplemixing = self_consistent_field_ChebyP(basis; M=500, solver = scf_damping_solver())
+
+scfres_sdft_simplemixing = self_consistent_field_sdft(basis; M = 500, Ns = 200, solver = scf_damping_solver())  
