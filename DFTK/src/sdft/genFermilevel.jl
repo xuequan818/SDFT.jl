@@ -23,7 +23,7 @@ function genmu_bisec(basis::PlaneWaveBasis, ham; M = 500)
 		εF[k] = Roots.find_zero(μ -> filled_occ * compute_nelec_trace(H, E1, E2, β, μ, M) - Ne, (minε, maxε),
 									Roots.Bisection(), atol=eps(Float64))
 	end
-	DFTK.weighted_ksum(basis, εF; temp)
+	DFTK.weighted_ksum(basis, εF)
 end
 
 function compute_nelec_trace(H::Matrix{ComplexF64}, E1::Float64, E2::Float64, β, μ, M)
