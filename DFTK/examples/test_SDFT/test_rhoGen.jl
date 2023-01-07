@@ -78,11 +78,10 @@ occupation, εF = DFTK.compute_occupation(ham.basis, eigres.λ)
 ψ, occupation, ρout_ChebP = rhoGenChebP(ham, model, εF, 2000)
 
 """ ρout = rhoGenStoc """
-ψ, occupation, ρout_sdft = rhoGenStoc(ham, model, εF, 2000, 500)
+ψ, occupation, ρout_sdft = rhoGenStoc(ham, model, εF, 2000, 5000)
 
 norm(ρout - ρout_ChebP) #/sqrt(basis.dvol) L2 
 norm(ρout_ChebP - ρout_sdft) #/sqrt(basis.dvol) 
-
 
 
 using Plots
