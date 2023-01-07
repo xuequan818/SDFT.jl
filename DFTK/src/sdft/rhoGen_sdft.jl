@@ -7,9 +7,6 @@ using KrylovKit
 M : The order of the Chebyshev polynomial
 """
 function rhoGenChebP(ham, model, εF::Float64, M::Int64)
-    #, n_bands = DFTK.default_n_bands(ham.basis.model))
-	# ψ=nothing, n_ep_extra=3)  
-	
     β = 1 / model.temperature
     filled_occ = DFTK.filled_occupation(model)
 
@@ -17,10 +14,9 @@ function rhoGenChebP(ham, model, εF::Float64, M::Int64)
     ψ = []
     for k = 1 :  length(ham.basis.kpoints)
         push!(occ_ChebP, Vector{Float64}) 
-        # push!(ψ, Matrix{Float64}) 
         npw = size(ham.blocks[k], 1)
         occ_ChebP[k] = filled_occ * ones(npw)
-
+        # 1(spinless) or 2(nonespin)
         H = Matrix(ham.blocks[k])
         Emin, Umin = eigsolve(H, 1, :SR);
         Emax, Umax = eigsolve(H, 1, :LR);
@@ -60,7 +56,7 @@ function rhoGenStoc(ham, model, εF::Float64, M::Int, Ns::Int64)
     β = 1 / model.temperature
     filled_occ = DFTK.filled_occupation(model)
 
-    occ_sdft = [] # occupation for sdft shoulde be 1
+    occ_sdft = []
     ψ = []
     for k = 1 : length(ham.basis.kpoints)
         push!(occ_sdft, Vector{Float64}) 
@@ -104,8 +100,6 @@ The difference with (compute_density) in DFTK is that all occupation are "1" or 
 function compute_density_sdft(basis, ψ, occ)
     T = promote_type(eltype(basis), real(eltype(ψ[1])))
 
-    #filled_occ = DFTK.filled_occupation(basis.model) # 1(spinless) or 2(nonespin)
-
     # we split the total iteration range (ik, n) in chunks, and parallelize over them
     ik_n = [(ik, n) for ik = 1:length(basis.kpoints) for n = 1:size(ψ[ik], 2)]
     chunk_length = cld(length(ik_n), Threads.nthreads())
@@ -143,7 +137,8 @@ struct FermiDirac
     μ::Float64
     β::Float64
 end
-function ChebyshevCoef_sqrt(M::Int64, FD::FermiDirac)
+
+function ChebyshevCoef(M::Int64, FD::FermiDirac)
     # f^{1/2}(x) = \sum_{n = 0}^{M}a_n*T_n(x) 
     f(x) = evaluateDos(FD, x)
 
@@ -154,23 +149,6 @@ function ChebyshevCoef_sqrt(M::Int64, FD::FermiDirac)
     coef = 2 .* ones(M + 1)
     coef[1] -= 1.0
     @. coef = coef * coefft[1 : M+1]
-
-    return ChebyshevP(M, coef)
-end
-ChebyshevP_sqrt(M::Int64, FD::FermiDirac) = ChebyshevCoef_sqrt(M, FD)
-
-function ChebyshevCoef(M::Int64, FD::FermiDirac) 
-    # for evaluate Fermi-level Tr(f_{β,μ}(H)) = Ne 
-    # f(x) = \sum_{n = 0}^{M}a_n*T_n(x) 
-    f(x) = evaluateDos(FD, x)
-
-    Npt = 2 * M # Half of the number of integration points
-    pt = collect(range(0, 2pi - pi / Npt, length = 2Npt))
-    fv = @. (f(cos(pt)))
-    coefft = real.(fft(fv)) ./ (2Npt)
-    coef = 2 .* ones(M + 1)
-    coef[1] -= 1.0
-    @. coef = coef * coefft[1 : M + 1]
 
     return ChebyshevP(M, coef)
 end
