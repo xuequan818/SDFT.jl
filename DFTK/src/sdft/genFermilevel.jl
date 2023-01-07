@@ -33,7 +33,7 @@ function compute_nelec_trace(H::Matrix{ComplexF64}, E1::Float64, E2::Float64, β
 	cf = ChebP.coef
 
 	npw = size(H, 1) 
-	ψ = DFTK.ortho_qr(randn(ComplexF64, npw, npw))  # ortho_qr is a function in the DFTK
+	ψ = DFTK.ortho_qr(randn(ComplexF64, npw, npw)) 
 	nelec = 0.
 	for i = 1 : npw
 		u0 = ψ[:, i]
@@ -47,7 +47,7 @@ function compute_nelec_trace(H::Matrix{ComplexF64}, E1::Float64, E2::Float64, β
 			u0 = u1
 			u1 = u2
 		end
-    nelec += real(ψ[:, i]' * z)
+    	nelec += real(z' * z)
     end
     return nelec
 end
