@@ -65,14 +65,14 @@ basis = PlaneWaveBasis(model; Ecut, kgrid)
 scfres = self_consistent_field(basis)
 
 """Chebyshev polynomial method"""
-scfres_ChebyP = self_consistent_field_ChebyP(basis; M=500)
+scfres_ChebyP = self_consistent_field_ChebyP(basis; M = 5000)
 
 """Stochastic DFT"""
-scfres_sdft = self_consistent_field_sdft(basis; M = 500, Ns = 200)   # M = 500, Ns = 20 works well
+scfres_sdft = self_consistent_field_sdft(basis; M = 5000, Ns = 2000)   
 
 """scf: SimpleMixing"""
 scfres_simplemixing = self_consistent_field(basis;  solver = scf_damping_solver())
 
-scfres_ChebyP_simplemixing = self_consistent_field_ChebyP(basis; M=500, solver = scf_damping_solver())
+scfres_ChebyP_simplemixing = self_consistent_field_ChebyP(basis; M = 5000, solver = scf_damping_solver())
 
-scfres_sdft_simplemixing = self_consistent_field_sdft(basis; M = 500, Ns = 200, solver = scf_damping_solver())  
+scfres_sdft_simplemixing = self_consistent_field_sdft(basis; M = 5000, Ns = 2000, solver = scf_damping_solver())  
