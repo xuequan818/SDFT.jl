@@ -2,6 +2,7 @@
 
 using Distributions
 using KrylovKit
+using FFTW
 
 """Generate density by Chebyshev method
 M : The order of the Chebyshev polynomial
@@ -44,7 +45,8 @@ function rhoGenChebP(ham, model, εF::Float64, M::Int64)
         end
         push!(ψ, z) 
     end
-    return ψ, occ_ChebP, compute_density_sdft(ham.basis, ψ, occ_ChebP)
+    return ψ, occ_ChebP, DFTK.compute_density(ham.basis, ψ, occ_ChebP)
+    #compute_density_sdft(ham.basis, ψ, occ_ChebP)
 end 
 
 """Generate density by Stochastic method
@@ -89,45 +91,9 @@ function rhoGenStoc(ham, model, εF::Float64, M::Int, Ns::Int64)
         end
         push!(ψ, z) 
     end      
-    return ψ, occ_sdft, compute_density_sdft(ham.basis, ψ, occ_sdft)./ Ns
+    return ψ, occ_sdft, DFTK.compute_density(ham.basis, ψ, occ_sdft)./ Ns
 end
 
-"""Compute the density by specfic vectors 
-
-The difference with (compute_density) in DFTK is that all occupation are "1" or "2" here. Since we don't need to act again test function f on ψ (obtaind by Chebyshev method or Stochastic).
-"""
-
-function compute_density_sdft(basis, ψ, occ)
-    T = promote_type(eltype(basis), real(eltype(ψ[1])))
-
-    # we split the total iteration range (ik, n) in chunks, and parallelize over them
-    ik_n = [(ik, n) for ik = 1:length(basis.kpoints) for n = 1:size(ψ[ik], 2)]
-    chunk_length = cld(length(ik_n), Threads.nthreads())
-
-    # chunk-local variables
-    ρ_chunklocal = Array{T,4}[zeros(T, basis.fft_size..., basis.model.n_spin_components)
-                               for _ = 1:Threads.nthreads()]
-    ψnk_real_chunklocal = Array{complex(T),3}[zeros(complex(T), basis.fft_size)
-                                               for _ = 1:Threads.nthreads()]
-
-    @sync for (ichunk, chunk) in enumerate(Iterators.partition(ik_n, chunk_length))
-        Threads.@spawn for (ik, n) in chunk  # spawn a task per chunk
-            ψnk_real = ψnk_real_chunklocal[ichunk]
-            ρ_loc = ρ_chunklocal[ichunk]
-
-            kpt = basis.kpoints[ik]
-            ifft!(ψnk_real, basis, kpt, ψ[ik][:, n])
-            ρ_loc[:, :, :, kpt.spin] .+=
-            occ[ik][n] .* basis.kweights[ik] .*  abs2.(ψnk_real)
-        end
-    end
-
-    ρ = sum(ρ_chunklocal)
-    mpi_sum!(ρ, basis.comm_kpts)
-    ρ = DFTK.symmetrize_ρ(basis, ρ; do_lowpass=false)
-
-    ρ
-end
 struct ChebyshevP
     M::Int64
     coef::Array{Float64,1}
