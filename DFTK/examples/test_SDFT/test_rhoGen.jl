@@ -31,27 +31,7 @@ C = ElementPsp(:C, psp=load_psp("hgh/pbe/c-q4"))
 atoms = [C, C]
 
 model = model_PBE(lattice, atoms, positions; temperature)
-
-# run file "standard_models.jl" (remove the Entropy),i.e. the following function, since we don't solving eigenvalues, Entropy needs eigenvalues as input.
-function model_atomic(lattice::AbstractMatrix,
-	atoms::Vector{<:Element},
-	positions::Vector{<:AbstractVector};
-	extra_terms=[], kinetic_blowup=BlowupIdentity(), kwargs...)
-	@assert !(:terms in keys(kwargs))
-	terms = [Kinetic(; blowup = kinetic_blowup),
-	AtomicLocal(),
-	AtomicNonlocal(),
-	Ewald(),
-	PspCorrection(),
-	extra_terms...]
-	#=
-	if :temperature in keys(kwargs) && kwargs[:temperature] != 0
-	terms = [terms..., Entropy()]
-	end
-	=#    
-	Model(lattice, atoms, positions; model_name="atomic", terms, kwargs...)
-end
-model = model_PBE(lattice, atoms, positions; temperature)
+filter!(x -> x != Entropy(), model.term_types)
 
 basis = PlaneWaveBasis(model; Ecut, kgrid)
 
@@ -69,20 +49,19 @@ energies, ham = energy_hamiltonian(basis, ψ, occupation;
 eigensolver=lobpcg_hyper
 eigres = diagonalize_all_kblocks(eigensolver, ham, 100;
 ψguess=ψ) # 100 is the number of the bands (only for test)
-occupation, εF = DFTK.compute_occupation(ham.basis, eigres.λ)
+occupation, εF = DFTK.compute_occupation(ham.basis, eigres.λ; occupation_threshold = 1e-6)
 
 """ρout = ∑_{i}^{band}f_i|ψ(x)|^2"""
 ρout = compute_density(ham.basis, eigres.X, occupation)
 
 """ ρout = rhoGenChebyP """
-ψ, occupation, ρout_ChebP = rhoGenChebP(ham, model, εF, 2000)
+ψ, occ, ρout_ChebP = rhoGenChebP(ham, model, εF, 2000)
 
 """ ρout = rhoGenStoc """
-ψ, occupation, ρout_sdft = rhoGenStoc(ham, model, εF, 2000, 5000)
+ψ, occ, ρout_sdft = rhoGenStoc(ham, model, εF, 2000, 500)
 
 norm(ρout - ρout_ChebP) #/sqrt(basis.dvol) L2 
 norm(ρout_ChebP - ρout_sdft) #/sqrt(basis.dvol) 
-
 
 using Plots
 plot(ρout[:,16,1,1])
