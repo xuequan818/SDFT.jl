@@ -1,7 +1,5 @@
 # Compute the Fermi level εF by evaluating Trace(f_{β,εF}(H))
 
-import Roots
-
 function genmu_bisec(basis::PlaneWaveBasis, ham; M = 500)
     Ne = basis.model.n_electrons
 	filled_occ = DFTK.filled_occupation(basis.model)
