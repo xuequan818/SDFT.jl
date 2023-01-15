@@ -41,22 +41,22 @@ function rhoGen(ham::Hamiltonian, model::Model, εF::Float64, rhoG::rhoCheb)
         cf = ChebP.coef
 
         u0 = Matrix{ComplexF64}(I, npw, npw)
-        u1 = copy(u0)
-        u2 = copy(u0)
 
         # In the test stage, we don't use Matrix Free
-        # mul!(u1, hamk, u0)
+        u1 = zero(u0)
+        #mul!(u1, hamk, u0)
         mul!(u1, H, u0)
         @. u1 = (u1 - E1 * u0) / E2
         z = cf[1] .* u0 + cf[2] .* u1
         for l = 3:M+1
-            #mul!(u2, hamk, u1)
+            u2 = zero(u0)
+            #mul!(u2,hamk,u1)
             mul!(u2, H, u1)
             @. u2 = 2.0 * ((u2 - E1 * u1) / E2) - u0
             @. z += cf[l] * u2
 
-            u0 = u1
-            u1 = copy(u2)
+            @. u0 = u1
+            @. u1 = u2
         end
         ψ[k] = z
     end
@@ -102,22 +102,22 @@ function rhoGen(ham::Hamiltonian, model::Model, εF::Float64, rhoG::rhoStoc)
 
         d = Uniform(0, 2pi)
         u0 = exp.(im .* rand(d, npw, Ns))
-        u1 = copy(u0)
-        u2 = copy(u0)
 
         # In the test stage, we don't use Matrix Free
-        # mul!(u1, hamk, u0)
+        u1 = zero(u0)
+        #mul!(u1, hamk, u0)
         mul!(u1, H, u0)
         @. u1 = (u1 - E1 * u0) / E2
         z = cf[1] .* u0 + cf[2] .* u1
         for l = 3:M+1
-            #mul!(u2, hamk, u1)
-            mul!(u2, H, u1)
+            u2 = zero(u0)
+            #mul!(u2,hamk,u1)
+            mul!(u2,H,u1)
             @. u2 = 2.0 * ((u2 - E1 * u1) / E2) - u0
             @. z += cf[l] * u2
 
-            u0 = u1
-            u1 = copy(u2)
+            @. u0 = u1
+            @. u1 = u2
         end
         ψ[k] = z
     end
