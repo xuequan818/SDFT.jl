@@ -19,7 +19,7 @@ using Plots, Plots.PlotMeasures, LaTeXStrings
 L = 5  # height of the simulation box
 kgrid = [1, 1, 1]
 # kgrid = [6, 6, 1]
-Ecut = 15
+Ecut = 10
 temperature = 1e-3
 
 ## Define the geometry and pseudopotential

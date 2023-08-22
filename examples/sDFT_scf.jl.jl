@@ -19,7 +19,7 @@ using Plots, Plots.PlotMeasures, LaTeXStrings
 L = 5  # height of the simulation box
 kgrid = [1, 1, 1]
 # kgrid = [6, 6, 1]
-Ecut = 15
+Ecut = 10
 temperature = 1e-3
 
 ## Define the geometry and pseudopotential
@@ -67,7 +67,7 @@ P = plot(xlabel="step", ylabel="error", grids=:off, box=:on, guidefontsize=22, t
 for i = 1:length(mix)
 	@time scfres_sdft, ρf = self_consistent_field_sdft(basis, rs; maxiter=20, damping=mix[i]);
 	res = @. norm(ρf - [ρc])
-	plot!(P, collect(1:length(res)), res, yscale =:log10, label=plname[i], lw=3.0, color=cols[i])
+    plot!(P, collect(1:length(res)), res, yscale=:log10, label=plname[i], lw=3, color=cols[i])
 end
 P
 #savefig("mixing.pdf")
