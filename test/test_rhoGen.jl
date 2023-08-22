@@ -13,11 +13,11 @@ using Plots
 
 
 ## Define the convergence parameters (these should be increased in production)
-L = 20  # height of the simulation box
+L = 5  # height of the simulation box
 kgrid = [1, 1, 1]
 #kgrid = [6, 6, 1]
 Ecut = 15
-temperature = 1e-2
+temperature = 1e-3
 
 ## Define the geometry and pseudopotential
 a = 4.66  # lattice constant
@@ -40,37 +40,55 @@ basis = PlaneWaveBasis(model; Ecut, kgrid)
 
 # Given ρin, generat Ham, 
 ρin = guess_density(basis)
-ψ = nothing
-occupation = nothing
-eigenvalues = nothing
-εF = nothing
-
-energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρin, eigenvalues, εF)
+ham = Hamiltonian(basis; ρ=ρin)
 
 # solving eigenpaires, obtain ρout
 eigensolver = lobpcg_hyper
-eigres = diagonalize_all_kblocks(eigensolver, ham, 100; ψguess=ψ) # 100 is the number of the bands (only for test)
+eigres = diagonalize_all_kblocks(eigensolver, ham, 30; ψguess=nothing) # 100 is the number of the bands (only for test)
 occupation, εF = DFTK.compute_occupation(ham.basis, eigres.λ)
 
 """ρout = ∑_{i}^{band}f_i|ψ(x)|^2"""
 ρout = compute_density(ham.basis, eigres.X, occupation)
 
-M = 300
-""" ρout = rhoGenChebyP """
+M = 3000
+""" ρout = rhoCheb """
 rc = rhoCheb(M)
 @time ψ, occupation, ρout_ChebP = rhoGen(ham, model, εF, rc);
 print("$(rc.M)-order Cheb error : $(norm(ρout - ρout_ChebP)) ")
+#=
+Profile.clear()
+Profile.init(delay=1e-4)
+@profile rhoGen(ham, model, εF, rc);
+Profile.print()
+=#
 
-""" ρout = rhoGenStoc """
+""" ρout = rhoStoc """
 rs = rhoStoc(M, 500)
 @time ψ, occupation, ρout_sdft = rhoGen(ham, model, εF, rs);
 print("$(rs.M)-order $(rs.Ns)-stoc error : $(norm(ρout_ChebP - ρout_sdft)) ")
 
+""" ρout = rhoTStoc """
+tM = [M, 1000, 500]
+tNs = [50, 300, 300]
+β = @. 1 / temperature * [1, 0.2, 0.1]
+rs = rhoTStoc(length(tM), β, tM, tNs)
+@time ψ, occupation, ρout_tsdft = rhoGen(ham, model, εF, rs);
+print("$(rs.nL)-level tstoc error : $(norm(ρout_ChebP - ρout_tsdft)) ")
+
+""" ρout = rhoCutStoc """
+cut = [Ecut, Ecut - 2.]
+Ns = [200, 200]
+rcut = rhoCutStoc(M, cut, Ns, model; kgrid);
+@time ψ, occupation, ρout_cutsdft = rhoGen(ham, model, εF, rcut);
+print("$(rcut.nL)-level tstoc error : $(norm(ρout_ChebP - ρout_cutsdft)) ")
+
+
 #norm(ρout - ρout_ChebP) #/sqrt(basis.dvol) L2 
 #norm(ρout_ChebP - ρout_sdft) #/sqrt(basis.dvol) 
-
 plot(ρout[:, 16, 1, 1])
 plot!(ρout_ChebP[:, 16, 1, 1])
 plot!(ρout_sdft[:, 16, 1, 1])
+plot!(ρout_tsdft[:, 16, 1, 1])
+
 
 

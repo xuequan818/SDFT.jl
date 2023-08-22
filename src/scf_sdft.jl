@@ -13,22 +13,24 @@ Iteration
 Stochastic : Solve the Kohn-Sham equations with a SCF algorithm, starting at ρ.
 """
 
+export self_consistent_field_sdft
+
 function self_consistent_field_sdft(basis::PlaneWaveBasis, rhoG::StocDensity;
-                                    ρ=guess_density(basis),
-                                    ψ=nothing,
-                                    tol=1e-6,
-                                    maxiter=100,
-                                    solver=scf_anderson_solver(),
-                                    eigensolver=lobpcg_hyper,
-                                    determine_diagtol=DFTK.ScfDiagtol(),
-                                    damping=0.8,  # Damping parameter
-                                    mixing=SimpleMixing(),#LdosMixing(),
-                                    is_converged=DFTK.ScfConvergenceEnergy(tol),
-                                    callback=DFTK.ScfDefaultCallback(; show_damping=false),
-                                    compute_consistent_energies=true,
-                                    occupation_threshold=DFTK.default_occupation_threshold(), # 1e-10
-                                    response=ResponseOptions()  # Dummy here, only for AD
-                                    )
+    ρ=guess_density(basis),
+    ψ=nothing,
+    tol=1e-6,
+    maxiter=100,
+    solver=scf_anderson_solver(),
+    eigensolver=lobpcg_hyper,
+    determine_diagtol=DFTK.ScfDiagtol(),
+    damping=[4.0, 1.0, 4.0],  # Damping parameter
+    mixing=SimpleMixing(),#LdosMixing(),
+    is_converged=DFTK.ScfConvergenceEnergy(tol),
+    callback=DFTK.ScfDefaultCallback(; show_damping=false),
+    compute_consistent_energies=true,
+    occupation_threshold=DFTK.default_occupation_threshold(), # 1e-10
+    response=ResponseOptions()  # Dummy here, only for AD
+)
     T = eltype(basis)
     model = basis.model
 
@@ -43,7 +45,8 @@ function self_consistent_field_sdft(basis::PlaneWaveBasis, rhoG::StocDensity;
     ham = nothing
     info = (n_iter=0, ρin=ρ)   # Populate info with initial values
     converged = false
-
+    ρfull = []
+    @printf(" SCF|  mixing  |  log10(Δρ)  \n")
     # We do density mixing in the real representation
     # TODO support other mixing types
     function fixpoint_map(ρin)
@@ -53,7 +56,7 @@ function self_consistent_field_sdft(basis::PlaneWaveBasis, rhoG::StocDensity;
 
         # Note that ρin is not the density of ψ, and the eigenvalues
         # are not the self-consistent ones, which makes this energy non-variational
-        energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ = ρin, εF = εF)
+        energies, ham = energy_hamiltonian(basis, ψ, occupation; ρ=ρin, εF=εF)
 
         """Compute the Fermi level by diagonalization"""
         #n_bands_compute = 100  # for convenience, given directly
@@ -79,11 +82,19 @@ function self_consistent_field_sdft(basis::PlaneWaveBasis, rhoG::StocDensity;
         info = merge(info, (; energies))
 
         # Apply mixing and pass it the full info as kwargs
+        dd = damping[1]
+        dr = damping[2]
+        dc = damping[3]
+        damp = dd / (dr * n_iter + dc)
         δρ = DFTK.mix_density(mixing, basis, ρout - ρin; info...)
-        ρnext = ρin .+ T(damping) .* δρ
+        ρnext = ρin .+ T(damp) .* δρ
         info = merge(info, (; ρnext=ρnext))
 
-        callback(info)
+        push!(ρfull, ρnext)
+        e = norm(info.ρout - info.ρin) * sqrt(basis.dvol)
+        @printf(" %3.d | %.6f |    %.2f   \n", n_iter, damp, log10(e))
+
+        #callback(info)
         is_converged(info) && (converged = true)
 
         ρnext
@@ -106,7 +117,6 @@ function self_consistent_field_sdft(basis::PlaneWaveBasis, rhoG::StocDensity;
 
     # Callback is run one last time with final state to allow callback to clean up
     info = (; ham, basis, energies, converged, occupation_threshold, ρ=ρout, α=damping, occupation, εF, n_iter, ψ, stage=:finalize, algorithm="SCF", norm_Δρ)
-    callback(info)
-    info
+    #callback(info)
+    info, ρfull
 end
-

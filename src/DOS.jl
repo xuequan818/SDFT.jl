@@ -46,9 +46,11 @@ function ChebyshevCoef(M::Int64, FD::FermiDirac)
     @. coef = coef * coefft[1:M+1]
 	
 	# Jackson Damping
-	aM = pi / (M + 2)
-	g(m) = ((1 - m / (M + 2))sin(aM)cos(m * aM) + (1 / (M + 2))cos(aM)sin(m * aM)) / sin(aM)
-	@. coef = coef * g(0:M)	
+    if FD.β > 1e2
+        aM = pi / (M + 2)
+        g(m) = ((1 - m / (M + 2))sin(aM)cos(m * aM) + (1 / (M + 2))cos(aM)sin(m * aM)) / sin(aM)
+        @. coef = coef * g(0:M)	
+    end
 
     return ChebyshevP(M, coef)
 end

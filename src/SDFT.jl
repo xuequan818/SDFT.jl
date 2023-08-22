@@ -1,14 +1,12 @@
 module SDFT
 
 using Distributions
-using KrylovKit
 using FFTW
-using Roots
+using Roots, LinearAlgebra, KrylovKit
 using DFTK
-using Unitful
-using UnitfulAtomic
-using LinearAlgebra
-using Plots
+using Unitful, UnitfulAtomic
+using Printf, Plots, Plots.PlotMeasures, LaTeXStrings
+using StringDistances
 
 include("DOS.jl")
 

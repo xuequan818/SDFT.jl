@@ -12,13 +12,15 @@ using DFTK
 using Unitful
 using UnitfulAtomic
 using LinearAlgebra
+using Plots, Plots.PlotMeasures, LaTeXStrings
+
 
 ## Define the convergence parameters (these should be increased in production)
 L = 5  # height of the simulation box
 kgrid = [1, 1, 1]
 # kgrid = [6, 6, 1]
-Ecut = 10
-temperature = 1e-3 #1e-2
+Ecut = 15
+temperature = 1e-3
 
 ## Define the geometry and pseudopotential
 a = 4.66  # lattice constant
@@ -45,30 +47,29 @@ basis = PlaneWaveBasis(model; Ecut, kgrid)
 """solving eigenpaire"""
 scfres = self_consistent_field(basis);
 ρ = scfres.ρ;
+@show dof = length(G_vectors(scfres.ham.basis, scfres.ham.basis.kpoints[1]))
 
 """Chebyshev polynomial method"""
-rc = rhoCheb(800)
-scfres_ChebP = self_consistent_field_sdft(basis, rc);
+M = 3000
+rc = rhoCheb(M)
+mix = [0.8, 0.0, 1.0] # damping = mix[1] / (mix[2]* niter + mix[3])
+@time scfres_ChebP, ρf = self_consistent_field_sdft(basis, rc; maxiter=20, damping=mix);
 ρc = scfres_ChebP.ρ;
-norm(ρc - ρ)
+@show norm(ρc - ρ)
 
-"""Stochastic DFT"""
-rs = rhoStoc(800, 400)
-scfres_sdft = self_consistent_field_sdft(basis, rs; maxiter=20);
-ρs = scfres_sdft.ρ;
-norm(ρc - ρs)
-
-"""scf: SimpleMixing"""
-scfres_simplemixing = self_consistent_field(basis; solver=scf_damping_solver())
-ρ = scfres.ρ;
-
-rc = rhoCheb(800)
-scfres_ChebyP_simplemixing = self_consistent_field_sdft(basis, rc; solver=scf_damping_solver());
-ρc = scfres_ChebyP_simplemixing.ρ;
-norm(ρc - ρ)
-
-
-rs = rhoStoc(800, 200)
-scfres_sdft_simplemixing = self_consistent_field_sdft(basis, rs; solver=scf_damping_solver(), maxiter=20);
-ρc = scfres_sdft_simplemixing.ρ;
-norm(ρc - ρs)
+"""Tempering"""
+tM = [M, 500]
+tNs = [50, 300]
+β = @. 1 / temperature * [1, 0.1]
+rs = rhoTStoc(length(tM), β, tM, tNs)
+mix = [[0.8, 0.0, 1.0], [0.2, 0.0, 1.0], [1.0, 0.25, 1.0]]
+cols = collect(palette(:tab10))
+plname = [L"\alpha= %$(mix[1][1])", L"\alpha= %$(mix[2][1])", L"{\rm diminishing} ~\alpha"]
+P = plot( xlabel="step", ylabel="error", grids=:off, box=:on, guidefontsize=22, tickfontsize=20, legendfontsize=20, legend=:topright, grid=:off, size=(740, 620), right_margin=3mm, top_margin=3mm)
+for i = 1:length(mix)
+    @time scfres_sdft, ρf = self_consistent_field_sdft(basis, rs; maxiter=20, damping=mix[i])
+    res = @. norm(ρf - [ρc])
+    plot!(P, collect(1:length(res)), res, yscale=:log10, label=plname[i], lw=3, color=cols[i])
+end
+P
+#savefig("mixing.pdf")
