@@ -1,0 +1,10 @@
+prefix=/Users/peacemox/julia/SDFT.jl/.CondaPkg/env
+exec_prefix=/Users/peacemox/julia/SDFT.jl/.CondaPkg/env
+libdir=/Users/peacemox/julia/SDFT.jl/.CondaPkg/env/lib
+includedir=/Users/peacemox/julia/SDFT.jl/.CondaPkg/env/include
+
+Name: libjpeg
+Description: A SIMD-accelerated JPEG codec that provides the libjpeg API
+Version: 3.0.0
+Libs: -L${libdir} -ljpeg
+Cflags: -I${includedir}

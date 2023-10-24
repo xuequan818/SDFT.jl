@@ -23,6 +23,14 @@ function evaluateDos(FD::FermiDirac, x::Vector)
     return y
 end
 
+function evaluateEnergy(FD::FermiDirac, x::Vector)
+    μ = FD.μ
+    β = FD.β
+    y = @. 1.0 / (1.0 + exp(β * (x - μ)))
+    
+    E = sum(y .* x)
+end
+
 """
 Chebyshev polynomial
 M :: the M-th Chebyshev polynomial
@@ -63,4 +71,14 @@ function evaluateDos(FD::FermiDirac, x)
     return 1.0 / (1.0 + exp(β * (x - μ)))
 end
 
+# Compute the total energy of a given density
+function Etot(ρ::Array{Float64,4}, basis)
+    ham = Hamiltonian(basis; ρ=ρ)
+    eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, 30; ψguess=nothing)
+    occupation, εF = DFTK.compute_occupation(ham.basis, eigres.λ)
+    ψ = eigres.X
+    eigenvalues = eigres.λ
+    energies, _ = energy_hamiltonian(basis, ψ, occupation; ρ=ρ, eigenvalues=eigenvalues, εF=εF)
 
+    E = energies.total
+end

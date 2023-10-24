@@ -14,6 +14,27 @@ struct rhoCheb <: StocDensity
 
 end
 
+function ChebRecur(M::Int64, cf::Array{Float64,1}, u0::Matrix{ComplexF64}, u1::Matrix{ComplexF64}, u2::Matrix{ComplexF64}, H, E1, E2)
+
+    mul!(u1, H, u0)
+    @. u1 = (u1 - E1 * u0) / E2
+    z = @. cf[1] * u0 + cf[2] * u1
+
+    for l = 3:M+1
+        #mul!(u2,hamk,u1)
+        mul!(u2, H, u1)
+        @. u2 = 2.0 * ((u2 - E1 * u1) / E2)
+        @. u2 = u2 - u0
+        #@. u2 = 2.0 * ((u2 - E1 * u1) / E2) - u0
+        @. z = z + cf[l] * u2
+
+        @. u0 = u1
+        @. u1 = u2
+    end
+
+    return z
+end
+
 function rhoGen(ham::Hamiltonian, model::Model, εF::Float64, rhoG::rhoCheb)
     M = rhoG.M
     β = 1 / model.temperature
@@ -41,24 +62,12 @@ function rhoGen(ham::Hamiltonian, model::Model, εF::Float64, rhoG::rhoCheb)
         cf = ChebP.coef
 
         u0 = Matrix{ComplexF64}(I, npw, npw)
+        u1 = Matrix{ComplexF64}(I, npw, npw)
+        u2 = Matrix{ComplexF64}(I, npw, npw)
 
         # In the test stage, we don't use Matrix Free
-        u1 = zero(u0)
         #mul!(u1, hamk, u0)
-        mul!(u1, H, u0)
-        @. u1 = (u1 - E1 * u0) / E2
-        z = cf[1] .* u0 + cf[2] .* u1
-        for l = 3:M+1
-            u2 = zero(u0)
-            #mul!(u2,hamk,u1)
-            mul!(u2, H, u1)
-            @. u2 = 2.0 * ((u2 - E1 * u1) / E2) - u0
-            @. z += cf[l] * u2
-
-            @. u0 = u1
-            @. u1 = u2
-        end
-        ψ[k] = z
+        ψ[k] = ChebRecur(M, cf, u0, u1, u2, H, E1, E2)
     end
     return ψ, occ_ChebP, DFTK.compute_density(ham.basis, ψ, occ_ChebP)
     #compute_density_sdft(ham.basis, ψ, occ_ChebP)
@@ -102,24 +111,10 @@ function rhoGen(ham::Hamiltonian, model::Model, εF::Float64, rhoG::rhoStoc)
 
         d = Uniform(0, 2pi)
         u0 = exp.(im .* rand(d, npw, Ns))
-
-        # In the test stage, we don't use Matrix Free
-        u1 = zero(u0)
-        #mul!(u1, hamk, u0)
-        mul!(u1, H, u0)
-        @. u1 = (u1 - E1 * u0) / E2
-        z = cf[1] .* u0 + cf[2] .* u1 # z = P(H)*I
-        for l = 3:M+1
-            u2 = zero(u0)
-            #mul!(u2,hamk,u1)
-            mul!(u2, H, u1)
-            @. u2 = 2.0 * ((u2 - E1 * u1) / E2) - u0
-            @. z += cf[l] * u2
-
-            @. u0 = u1
-            @. u1 = u2
-        end
-        ψ[k] = z
+        u1 = copy(u0)
+        u2 = copy(u0)
+        
+        ψ[k] = ChebRecur(M, cf, u0, u1, u2, H, E1, E2)
     end
     return ψ ./ Ns, occ_sdft, DFTK.compute_density(ham.basis, ψ, occ_sdft) ./ Ns
 end
@@ -179,14 +174,14 @@ function rhoGen(ham::Hamiltonian, model::Model, εF::Float64, rhoG::rhoTStoc)
             M2 = tCP[l+1].M
             u0 = exp.(im .* rand(d, npw, Ns[l]))
             # In the test stage, we don't use Matrix Free
-            u1 = zero(u0)
+            u1 = copy(u0)
+            u2 = copy(u0)
             #mul!(u1, hamk, u0)
             mul!(u1, H, u0)
             @. u1 = (u1 - E1 * u0) / E2
             z1 = cf1[1] .* u0 + cf1[2] .* u1
             z2 = cf2[1] .* u0 + cf2[2] .* u1
             for m = 3:M2+1
-                u2 = zero(u0)
                 #mul!(u2,hamk,u1)
                 mul!(u2, H, u1)
                 @. u2 = 2.0 * ((u2 - E1 * u1) / E2) - u0
@@ -199,7 +194,6 @@ function rhoGen(ham::Hamiltonian, model::Model, εF::Float64, rhoG::rhoTStoc)
             ψ[k, 2l] = z2 ./ sqrt(Ns[l])
 
             for m = M2+2:M1+1
-                u2 = zero(u0)
                 #mul!(u2,hamk,u1)
                 mul!(u2, H, u1)
                 @. u2 = 2.0 * ((u2 - E1 * u1) / E2) - u0
@@ -215,29 +209,16 @@ function rhoGen(ham::Hamiltonian, model::Model, εF::Float64, rhoG::rhoTStoc)
         M3 = tCP[nL].M
         #u0 = exp.(im .* rand(d, npw, Ns[nL]))
         u0 = Matrix{ComplexF64}(I, npw, npw)
-        # In the test stage, we don't use Matrix Free
-        u1 = zero(u0)
-        #mul!(u1, hamk, u0)
-        mul!(u1, H, u0)
-        @. u1 = (u1 - E1 * u0) / E2
-        z = cf3[1] .* u0 + cf3[2] .* u1
-        for m = 3:M3+1
-            u2 = zero(u0)
-            #mul!(u2,hamk,u1)
-            mul!(u2, H, u1)
-            @. u2 = 2.0 * ((u2 - E1 * u1) / E2) - u0
-            @. z += cf3[m] * u2
+        u1 = Matrix{ComplexF64}(I, npw, npw)
+        u2 = Matrix{ComplexF64}(I, npw, npw)
 
-            @. u0 = u1
-            @. u1 = u2
-        end
-        ψ[k, end] = z
+        ψ[k, end] = ChebRecur(M3, cf3, u0, u1, u2, H, E1, E2)
     end
 
     ρ = DFTK.compute_density(ham.basis, ψ[:, end], occ_sdft[:, nL]) #./ Ns[nL]
     for l = 1:nL-1
-        ρ1 = DFTK.compute_density(ham.basis, ψ[:, 2l-1], occ_sdft[:, l]) 
-        ρ2 = DFTK.compute_density(ham.basis, ψ[:, 2l], occ_sdft[:, l]) 
+        ρ1 = DFTK.compute_density(ham.basis, ψ[:, 2l-1], occ_sdft[:, l])
+        ρ2 = DFTK.compute_density(ham.basis, ψ[:, 2l], occ_sdft[:, l])
         ρ += (ρ1 - ρ2)
     end
 
@@ -279,7 +260,7 @@ function HamCut(M::Int64, cut::Vector{Float64}, Ns::Vector{Int64}, model::Model;
 
     for k = 1:lk
         Gv = G_vectors(hamL[1].basis, hamL[1].basis.kpoints[k])
-        full_ind[k,1] = collect(1:length(Gv))
+        full_ind[k, 1] = collect(1:length(Gv))
         for i = 1:nL-1
             Gv1 = G_vectors(hamL[i].basis, hamL[i].basis.kpoints[k])
             Gv2 = G_vectors(hamL[i+1].basis, hamL[i+1].basis.kpoints[k])
@@ -333,7 +314,6 @@ function rhoGen(ham::Hamiltonian, model::Model, εF::Float64, rhoG::rhoCutStoc)
             occ_sdft[k, l] = ones(Ns[l])
         end
         occ_sdft[k, nL] = ones(dofL[k, nL])
-        @. occ_sdft = filled_occ * occ_sdft
 
         for l = 1:nL-1
             z_full1 = zeros(ComplexF64, dofL[k, 1], Ns[l])
@@ -344,70 +324,37 @@ function rhoGen(ham::Hamiltonian, model::Model, εF::Float64, rhoG::rhoCutStoc)
             ind = same_ind[k, l]
             u0_l1 = exp.(im .* rand(d, dofL[k, l], Ns[l]))
             #u0_l1 = Matrix{ComplexF64}(I, dofL[k, l], dofL[k, l])
-            u0_l2 = copy(u0_l1[ind,:])
-            # In the test stage, we don't use Matrix Free
-            u1_l1 = zero(u0_l1)
-            u1_l2 = zero(u0_l2)
-            #mul!(u1, hamk, u0)
-            mul!(u1_l1, H_l1, u0_l1)
-            mul!(u1_l2, H_l2, u0_l2)
-            @. u1_l1 = (u1_l1 - E1 * u0_l1) / E2
-            @. u1_l2 = (u1_l2 - E1 * u0_l2) / E2
-            z_l1 = cf[1] .* u0_l1 + cf[2] .* u1_l1
-            z_l2 = cf[1] .* u0_l2 + cf[2] .* u1_l2
-            for m = 3:M+1
-                u2_l1 = zero(u0_l1)
-                u2_l2 = zero(u0_l2)
-                #mul!(u2,hamk,u1)
-                mul!(u2_l1, H_l1, u1_l1)
-                mul!(u2_l2, H_l2, u1_l2)
-                @. u2_l1 = 2.0 * ((u2_l1 - E1 * u1_l1) / E2) - u0_l1
-                @. u2_l2 = 2.0 * ((u2_l2 - E1 * u1_l2) / E2) - u0_l2
-                @. z_l1 += cf[m] * u2_l1
-                @. z_l2 += cf[m] * u2_l2
+            u0_l2 = copy(u0_l1[ind, :])
+            u1_l1 = copy(u0_l1)
+            u1_l2 = copy(u0_l2)
+            u2_l1 = copy(u0_l1)
+            u2_l2 = copy(u0_l2)
 
-                @. u0_l1 = u1_l1
-                @. u1_l1 = u2_l1
-                @. u0_l2 = u1_l2
-                @. u1_l2 = u2_l2
-            end
-            z_full1[full_ind[k, l], :] = z_l1 ./ sqrt(Ns[l])
+            z_full1[full_ind[k, l], :] = ChebRecur(M, cf, u0_l1, u1_l1, u2_l1, H_l1, E1, E2) ./ sqrt(Ns[l])
             ψ[k, 2l-1] = z_full1
-            z_full2[full_ind[k, l+1], :] = z_l2 ./ sqrt(Ns[l])
+            z_full2[full_ind[k, l+1], :] = ChebRecur(M, cf, u0_l2, u1_l2, u2_l2, H_l2, E1, E2) ./ sqrt(Ns[l])
             ψ[k, 2l] = z_full2
         end
 
         z_full = zeros(ComplexF64, dofL[k, 1], dofL[k, nL])
-        H = hamL[nL].blocks[k]
+        H = Matrix(hamL[nL].blocks[k])
         #u0 = exp.(im .* rand(d, dofL[k,nl], Ns[nL]))
         u0 = Matrix{ComplexF64}(I, dofL[k, nL], dofL[k, nL])
-        # In the test stage, we don't use Matrix Free
-        u1 = zero(u0)
-        #mul!(u1, hamk, u0)
-        mul!(u1, H, u0)
-        @. u1 = (u1 - E1 * u0) / E2
-        z = cf[1] .* u0 + cf[2] .* u1
-        for m = 3:M+1
-            u2 = zero(u0)
-            #mul!(u2,hamk,u1)
-            mul!(u2, H, u1)
-            @. u2 = 2.0 * ((u2 - E1 * u1) / E2) - u0
-            @. z += cf[m] * u2
-
-            @. u0 = u1
-            @. u1 = u2
-        end
-        z_full[full_ind[k, nL], :] = z
+        u1 = copy(u0)
+        u2 = copy(u0)
+        
+        z_full[full_ind[k, nL], :] = ChebRecur(M, cf, u0, u1, u2, H, E1, E2)
         ψ[k, end] = z_full
     end
 
+    @. occ_sdft = filled_occ * occ_sdft
     ρ = DFTK.compute_density(ham.basis, ψ[:, end], occ_sdft[:, nL]) #./ Ns[nL]
     for l = 1:nL-1
         ρ1 = DFTK.compute_density(ham.basis, ψ[:, 2l-1], occ_sdft[:, l])
         ρ2 = DFTK.compute_density(ham.basis, ψ[:, 2l], occ_sdft[:, l])
         ρ += (ρ1 - ρ2)
     end
-    
+
     return ψ[:, 1] ./ Ns[1], occ_sdft, ρ
 end
 
