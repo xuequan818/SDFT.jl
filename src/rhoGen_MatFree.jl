@@ -19,7 +19,6 @@ function ChebRecur(M::Int64, cf::Array{Float64,1}, u0::Matrix{ComplexF64}, u1::M
     z = @. cf[1] * u0 + cf[2] * u1
 
     for l = 3:M+1
-        #mul!(u2,hamk,u1)
         mul!(u2, H, u1)
         @. u2 = 2.0 * ((u2 - E1 * u1) / E2)
         @. u2 = u2 - u0
@@ -46,9 +45,14 @@ function rhoGen(ham::Hamiltonian, model::Model, εF::Float64, rhoG::rhoCheb)
         occ_ChebP[k] = filled_occ .* ones(npw)
 
         # find the bound of eigenvalues
-        H = Matrix(hamk)
-        Emin, Umin = eigsolve(H, 1, :SR)
-        Emax, Umax = eigsolve(H, 1, :LR)
+        function Hx(x)
+            y = copy(x)
+            mul!(y, hamk, x)
+            return y
+        end
+        x0 = ones(ComplexF64,npw)/sqrt(npw)
+        Emin, Umin = eigsolve(Hx, x0, 1, :SR; krylovdim=10, maxiter=5)
+        Emax, Umax = eigsolve(Hx, x0, 1, :LR; krylovdim=10, maxiter=5)
         Elb = real.(Emin[1]) - 0.1
         Eub = real.(Emax[1]) + 0.1
         E1 = (Elb + Eub) / 2
@@ -63,8 +67,7 @@ function rhoGen(ham::Hamiltonian, model::Model, εF::Float64, rhoG::rhoCheb)
         u2 = Matrix{ComplexF64}(I, npw, npw)
 
         # In the test stage, we don't use Matrix Free
-        #mul!(u1, hamk, u0)
-        ψ[k] = ChebRecur(M, cf, u0, u1, u2, H, E1, E2)
+        ψ[k] = ChebRecur(M, cf, u0, u1, u2, hamk, E1, E2)
     end
     return ψ, occ_ChebP, DFTK.compute_density(ham.basis, ψ, occ_ChebP)
     #compute_density_sdft(ham.basis, ψ, occ_ChebP)
@@ -94,9 +97,14 @@ function rhoGen(ham::Hamiltonian, model::Model, εF::Float64, rhoG::rhoStoc)
         occ_sdft[k] = filled_occ * ones(Ns)  # We consider spin_polarization =:none, the filled occupation is 2, if spin_polarization =:spinless, the filled occupation is 1.
 
         # find the bound of eigenvalues
-        H = Matrix(hamk)
-        Emin, Umin = eigsolve(H, 1, :SR)
-        Emax, Umax = eigsolve(H, 1, :LR)
+        function Hx(x)
+            y = copy(x)
+            mul!(y, hamk, x)
+            return y
+        end
+        x0 = ones(npw) / sqrt(npw)
+        Emin, Umin = eigsolve(Hx, x0, 1, :SR; krylovdim=10, maxiter=5)
+        Emax, Umax = eigsolve(Hx, x0, 1, :LR; krylovdim=10, maxiter=5)
         Elb = real.(Emin[1]) - 0.1
         Eub = real.(Emax[1]) + 0.1
         E1 = (Elb + Eub) / 2
@@ -111,7 +119,7 @@ function rhoGen(ham::Hamiltonian, model::Model, εF::Float64, rhoG::rhoStoc)
         u1 = copy(u0)
         u2 = copy(u0)
         
-        ψ[k] = ChebRecur(M, cf, u0, u1, u2, H, E1, E2)
+        ψ[k] = ChebRecur(M, cf, u0, u1, u2, hamk, E1, E2)
     end
     return ψ ./ Ns, occ_sdft, DFTK.compute_density(ham.basis, ψ, occ_sdft) ./ Ns
 end

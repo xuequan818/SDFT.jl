@@ -1,3 +1,8 @@
+name = "SDFT"
+uuid = "1552f587-e31b-423a-adca-1154ac0ddc41"
+authors = ["xquan818 <840169780@qq.com>"]
+version = "0.1.0"
+
 [deps]
 ASEconvert = "3da9722f-58c2-4165-81be-b4d7253e8fd2"
 Arpack = "7d9fca2a-8960-54d3-9f78-7d1dccf2cb97"
@@ -10,6 +15,7 @@ FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 KrylovKit = "0b1a1467-8014-51b9-945f-bf0ae24f4b77"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 Libxc = "66e17ffc-8502-11e9-23b5-c9248d0eb96d"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 LinearMaps = "7a12625a-238d-50fd-b39a-03d52299707e"
 MPI = "da04e1cc-30fd-572f-bb4f-1f8673147195"
 MicroMamba = "0b3b1443-0f03-428d-bdfb-f27f9c1191ea"
@@ -20,5 +26,6 @@ PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+StringDistances = "88034a9c-02f8-509d-84a9-84ec65e18404"
 Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 UnitfulAtomic = "a7773ee8-282e-5fa2-be4e-bd808c38a91a"
