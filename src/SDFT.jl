@@ -1,5 +1,19 @@
 module SDFT
 
-# Write your package code here.
+using Distributions
+using DFTK
+using LinearAlgebra
+using Arpack, KrylovKit
+using FFTW
+using IterTools
+using Accessors
+using Folds, FoldsThreads
+using TimerOutputs
+using Printf
 
-end
+include("smear.jl")
+include("sdft_method.jl")
+include("Chebyshev.jl")
+include("density.jl")
+
+end # module SDFT
