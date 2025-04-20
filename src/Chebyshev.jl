@@ -176,8 +176,8 @@ function dense_to_sparse(A::Matrix, tolerance::Real)
     is, js = axes(A)
     for j in js
         for i in is
-            val = A[i, j]
-            if abs2(val) < tolerance
+            @inbounds val = A[i, j]
+            @inbounds if abs2(val) < tolerance
                 A[i, j] = 0
             end
         end
