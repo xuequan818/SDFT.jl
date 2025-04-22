@@ -2,6 +2,8 @@ module SDFT
 
 using Distributions
 using DFTK
+import DFTK: filled_occupation
+import DFTK: transfer_density, transfer_mapping
 using LinearAlgebra
 using Arpack, KrylovKit
 using FFTW

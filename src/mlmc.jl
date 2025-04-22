@@ -16,16 +16,17 @@ end
 OptimalPD(ML::T, nsl::Vector{T}, d) where {T<:Integer} = OptimalPD(ML, tuple(nsl...), d)
 OptimalPD(ML, nsl; d=DEFAULT_DISTR) = OptimalPD(ML, nsl, d)
 
-function optimal_mlmc(basis, εF, PD::OptimalPD;
+function optimal_mlmc(basis, FD::Union{Real,ChebInfo}, 
+                      PD::OptimalPD;
                       pmax=10, ph=0.1, Q0=0, 
                       ρ=guess_density(basis), 
                       tot_tol=1e-1, kws...)           
     Ml = Int.(optimal_hierarchy(pmax, ph, Q0, PD.ML, basis, PD; kws...))
 
-    vars, ψ = estimate_var(basis, εF, PDegreeML(Ml, PD.nsl, PD.d); ρ, kws...)
+    vars, ψ, hambl = estimate_var(basis, FD, PDegreeML(Ml, PD.nsl, PD.d); ρ, kws...)
     opt_nsl = optimal_ns(vars, Ml, tot_tol)
     
-    PDegreeML(Ml, opt_nsl, PD.d), vars, ψ
+    PDegreeML(Ml, opt_nsl, PD.d), vars, ψ, hambl
 end
 
 # Var[ϕ̂_χ^ℓ - ϕ] ≤ c1exp(-2*c2*M_ℓ)
@@ -66,7 +67,8 @@ end
 OptimalEC(EcL::T, nsl::Vector{T}, d) where {T<:Integer} = OptimalEC(EcL, tuple(nsl...), d)
 OptimalEC(EcL, nsl; d=DEFAULT_DISTR) = OptimalEC(EcL, nsl, d)
 
-function optimal_mlmc(basis, εF, EC::OptimalEC{N};
+function optimal_mlmc(basis, FD::Union{Real,ChebInfo},
+                      EC::OptimalEC{N};
                       pmax=10, ph=0.1, Q0=10, 
                       tot_tol=1e-1, slope=0.1, 
                       scfres_ref=nothing,
@@ -77,11 +79,11 @@ function optimal_mlmc(basis, εF, EC::OptimalEC{N};
 
     Ecl = optimal_hierarchy(pmax, ph, Q0, EC.EcL, basis, EC; 
                             slope, scfres_ref, kws...)
-    vars, ψ = estimate_var(basis, εF, ECutoffML(basis, Ecl, EC.nsl, EC.d); ρ, kws...)
+    vars, ψ, hambl = estimate_var(basis, FD, ECutoffML(basis, Ecl, EC.nsl, EC.d); ρ, kws...)
     fc(l) = isone(l) ? Ecl[l]^(dim/2) : (Ecl[l]^(dim/2) + Ecl[l-1]^(dim/2))
     opt_nsl = optimal_ns(vars, fc.(1:N), tot_tol)
 
-    ECutoffML(basis, Ecl, opt_nsl, EC.d), vars, ψ
+    ECutoffML(basis, Ecl, opt_nsl, EC.d), vars, ψ, hambl
 end
 
 # Var[ϕ̂_χ^ℓ - ϕ] ≤ c1exp(-2*c2*√E_{c,ℓ})
@@ -129,8 +131,8 @@ function eval_ec_const(Ecuts, basis, eigref, ψref, smearf, ρ)
     FHl = zero(fHref)
     for (l, ecl) in enumerate(Ecuts)
         basisl = PlaneWaveBasis(basis, ecl)
-        idcsk_in, idcsk_out = DFTK.transfer_mapping(basis, basis.kpoints[1], 
-                                                    basisl, basisl.kpoints[1])
+        idcsk_in, idcsk_out = transfer_mapping(basis, basis.kpoints[1], 
+                                               basisl, basisl.kpoints[1])
         ψl = [ψref[idcsk_in, :]]
         ρl = transfer_density(ρ, basis, basisl)
         haml = Hamiltonian(basisl; ρ=ρl)
@@ -179,6 +181,7 @@ function optimal_hierarchy(pmax, ph, Q0, QL,
     @assert pmax > ph
     ps = ph:ph:pmax
     Ql = algebraic_hierarchy(ps, Q0, QL, MLMC)
+    pind = collect(1:length(ps))
 
     c1, c2 = eval_conv_const(basis, MLMC; kws...)
     cs = zeros(T,length(Ql))
@@ -187,13 +190,15 @@ function optimal_hierarchy(pmax, ph, Q0, QL,
             cs[j] = mlmc_cost(Qlj, basis, c1, c2, MLMC)
         catch e
             if isa(e, DomainError)
-                cs[j] = Inf
+                cs[j] = NaN
+                setdiff!(pind, j)
             else
                 throw(e)
             end
         end
     end
-
+    filter!(!isnan, cs)
+    
     if isnothing(slope)
         opt = findmin(cs)[2]
     else
@@ -203,7 +208,7 @@ function optimal_hierarchy(pmax, ph, Q0, QL,
         opt = findfirst(x -> x < vs, cs)
     end
 
-    Ql[opt].(0:N-1)
+    Ql[pind[opt]].(0:N-1)
 end
 
 function estimate_digits(x::Real)

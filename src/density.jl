@@ -1,49 +1,56 @@
-import DFTK: transfer_density
-
 # TODO: profile
-function compute_stoc_density(basis::PlaneWaveBasis{T}, 
+function compute_stoc_density(basis::PlaneWaveBasis, 
                               εF, ST::SDFTMethod;
-                              cal_way=:cal_mat,
-						  	  M=Int(5e4), kws...) where {T}
-    TT = complex(T)
-    nk = length(basis.kpoints)
-    filled_occ = DFTK.filled_occupation(basis.model)
-    occfun(A::AbstractArray) = fill(filled_occ, size(A, 2))
+                              cal_way=:cal_mat, 
+                              M=Int(1e5), kws...)
     smearf = FermiDirac(εF, inv(basis.model.temperature))
-    haml = sdft_hamiltonian(basis, ST; kws...)
+    hambl = [iham.blocks[1] for iham in sdft_hamiltonian(basis, ST; kws...)]
+    Cheb = chebyshev_info(hambl[end], smearf, M, cal_way; kws...)
 
-    nl = count_nl(ST)
-    ψ = Matrix{Matrix{TT}}(undef, nk, 2nl-1)
-    occ = Matrix{Vector{T}}(undef, nk, 2nl-1)
-    #Folds.foreach(1:nk, WorkStealingEx()) do ik
-	for ik = 1:nk
-        # compute the Chebyshev coefficients
-        Cheb = chebyshev_info(haml[end].blocks[ik], smearf, M, cal_way; kws...)
-        println(" Expansion order = $(Cheb.order)")
-
-        hamk = [iham.blocks[ik] for iham in haml]        
-        ψik = compute_wavefun(hamk, cal_way, Cheb, ST)
-        if isone(nl)
-            ψ[ik] = ψik
-            occ[ik] = occfun(ψik)
-        else
-            ψ[ik, :] = ψik
-            occ[ik, :] = occfun.(ψik)
-        end
-	end
-
-    return compute_stoc_density(basis, ψ, occ, ST)#, ψ, occ
+    compute_stoc_density(basis,hambl, Cheb, ST; cal_way, kws...)
 end
 
-function compute_stoc_density(basis::PlaneWaveBasis, ψ, occ, ST::MC)
+function compute_stoc_density(basis::PlaneWaveBasis{T}, 
+                              hambl, Cheb::ChebInfo, 
+                              ST::SDFTMethod; ψin=nothing,
+                              cal_way=:cal_mat, kws...) where {T} 
+    @assert length(basis.kpoints) == 1
+
+    TT = complex(T)
+    filled_occ = filled_occupation(basis.model)
+    occfun(A::AbstractArray) = fill(filled_occ, size(A, 2))
+
     norb = orbital_normalize(ST)
+    if !isnothing(ψin)
+        ns_in = count_orbital_by_wf(ψin, ST)
+        ns_eval = ST.nsl .- ns_in
+        if ST isa MC
+            ST = @set ST.ns = ns_eval
+        else
+            ST = @set ST.nsl = tuple(ns_eval...)
+        end
+    end
+    
+    nl = count_nl(ST)
+    ψ = compute_wavefun(hambl, cal_way, Cheb, ST)
+    if !isnothing(ψin)
+        for i = 1:2nl-1
+            ψ[i] = hcat(ψin[i],ψ[i])
+        end
+    end
+    ψ = reshape(ψ, 1, 2nl-1)
+    occ = occfun.(ψ)
+
+    return compute_stoc_density(basis, ψ, occ, norb, ST)#, ψ, occ
+end
+
+function compute_stoc_density(basis::PlaneWaveBasis, ψ, occ, norb, ST::MC)
     ρ = compute_density(basis, ψ, occ)
     @. ρ * norb
 end
 
-function compute_stoc_density(basis::PlaneWaveBasis, ψ, occ, 
+function compute_stoc_density(basis::PlaneWaveBasis, ψ, occ, norb,
                               ST::PDegreeML{N}) where {N}
-    norb = orbital_normalize(ST)
     ρtot = norb[1] .* compute_density(basis, ψ[:, 1], occ[:, 1]) 
     ρml = Vector{AbstractArray}(undef, N)
     dρml = Vector{AbstractArray}(undef, N-1)
@@ -58,13 +65,11 @@ function compute_stoc_density(basis::PlaneWaveBasis, ψ, occ,
         ρml[l] = ρ2
         dρml[l-1] = Δρ
     end
-    ρtot, ρml, dρml
+    ρtot#, ρml, dρml
 end
 
-function compute_stoc_density(basis::PlaneWaveBasis, ψ, occ,
+function compute_stoc_density(basis::PlaneWaveBasis, ψ, occ, norb,
                               ST::ECutoffML{N}) where {N}
-    norb = orbital_normalize(ST)
-
     basisl = ST.basisl
     ρtot = transfer_density(norb[1] .* compute_density(basisl[1], ψ[:, 1], occ[:, 1]), basisl[1], basis)
     ρml = Vector{AbstractArray}(undef, N)
@@ -80,5 +85,5 @@ function compute_stoc_density(basis::PlaneWaveBasis, ψ, occ,
         ρml[l] = ρ2
         dρml[l-1] = Δρ
     end
-    ρtot, ρml, dρml
+    ρtot#, ρml, dρml
 end

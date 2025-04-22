@@ -21,10 +21,15 @@ function sdft_hamiltonian(basis::PlaneWaveBasis, ST::SDFTMethod; kws...)
     return haml
 end
 
+pos_map(x) = x >= 0 ? x : zero(x)
+
 # Monte Carlo SDFT (One level)
 struct MC <: SDFTMethod 
 	ns::Integer
     d::Union{Distribution,Nothing}
+	function MC(ns::Integer, d::Union{Distribution,Nothing})
+		new(pos_map(ns), d)
+	end
 end
 MC(ns::Integer) = MC(ns::Integer, DEFAULT_DISTR)
 CT() = MC(0, nothing)
@@ -62,7 +67,7 @@ struct PDegreeML{N} <: MLMC{N}
         			   d::Union{Distribution,Nothing}) where {N1,N2}
         @assert issorted(Ml)
         N1 == N2 || throw_cannot_mlmc()
-        new{N1}(Ml, nsl, d)
+        new{N1}(Ml, pos_map.(nsl), d)
     end
 end
 PDegreeML(Ml, nsl, d::Union{Distribution,Nothing}) = PDegreeML(tuple(Ml...), tuple(nsl...), d)
@@ -78,7 +83,7 @@ struct ECutoffML{N} <: MLMC{N}
                        nsl::NTuple{N,Integer},
                        d::Union{Distribution,Nothing}) where {N}
         length(basisl) == N || throw_cannot_mlmc()
-        new{N}(basisl, nsl, d)
+        new{N}(basisl, pos_map.(nsl), d)
     end
 end
 function ECutoffML(basis::PlaneWaveBasis, Ecl, nsl,

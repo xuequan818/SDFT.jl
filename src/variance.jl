@@ -1,23 +1,25 @@
-function estimate_var(basis::PlaneWaveBasis{T},
-                      εF, ST::SDFTMethod;
-                      cal_way=:cal_mat,
-					  M=Int(5e4), tol_cheb=1e-6,
-                      kws...) where {T}
-    TT = complex(T)
-    occ = DFTK.filled_occupation(basis.model)
+function estimate_var(basis::PlaneWaveBasis,
+                      εF::Real, ST::SDFTMethod;
+                      cal_way=:cal_mat, M=Int(5e4),
+					  tol_cheb=1e-6, kws...)
+    ham = Hamiltonian(basis; kws...).blocks[1]
     smearf = FermiDirac(εF, inv(basis.model.temperature))
-    haml = [iham.blocks[1] for iham in sdft_hamiltonian(basis, ST; kws...)]
+    Cheb = chebyshev_info(ham, smearf, M, cal_way; tol_cheb, kws...)
 
-    # compute the Chebyshev coefficients
-    Cheb = chebyshev_info(haml[end], smearf, M, cal_way; tol_cheb, kws...)
-    println(" Expansion order = $(Cheb.order)")
-
-    ψ = compute_wavefun(haml, cal_way, Cheb, ST)
-    
-    return occ^2 .* estimate_var(basis, ψ, ST), ψ	
+    estimate_var(basis, Cheb, ST; cal_way, kws...)
 end
 
-estimate_var(basis::PlaneWaveBasis, ψ, ST::MC) = variance(ψ)
+function estimate_var(basis::PlaneWaveBasis,
+                      Cheb::ChebInfo, ST::SDFTMethod;
+                      cal_way=:cal_mat, kws...) 
+    occ = filled_occupation(basis.model)
+    hambl = [iham.blocks[1] for iham in sdft_hamiltonian(basis, ST; kws...)]
+    ψ = compute_wavefun(hambl, cal_way, Cheb, ST)
+    
+    return occ^2 .* estimate_var(basis, ψ, ST), ψ, hambl
+end
+
+estimate_var(basis::PlaneWaveBasis, ψ, ST::MC) = variance(ψ[1])
 
 function estimate_var(basis::PlaneWaveBasis{T}, ψ, 
 					  ST::PDegreeML{N}) where {T,N}

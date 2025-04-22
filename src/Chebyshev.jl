@@ -19,9 +19,12 @@ function chebyshev_info(ham::HamiltonianBlock,
     if iszero(newM)
         error("No eigs in this range. S2 bound : ($(round(E1, digits=1)), $(round(E2, digits=1)))")
     end
+
+    println(" Expansion order = $(newM)")
     
     ChebInfo(TT(E1),TT(E2),newM,TT.(coef))
 end
+chebyshev_info(ham, smearfs; M=Int(1e5), cal_way=:cal_mat, tol_cheb=1e-6, kws...) = chebyshev_info(ham, smearfs, M, cal_way; tol_cheb, kws...)
 
 abstract type ChebyshevMethod end
 

@@ -2,6 +2,12 @@ function compute_wavefun(ham, cal_way, Cheb, ST::MC)
     H = S2_ham(ham[1], Val(cal_way), Cheb.E1, Cheb.E2)
     X = random_orbital(eltype(H), size(H, 1), ST)
     ψ = compute_cheb_recur(H, X, Cheb.coef, Cheb.E1, Cheb.E2)
+	return [ψ]
+end
+
+function count_orbital_by_wf(ψ::Vector{T}, ::MC) where {T<:AbstractArray}
+	@assert length(ψ) = 1
+	size.(ψ, 2)[1]
 end
 
 function compute_wavefun(ham, cal_way, Cheb, PD::PDegreeML{N}) where {N}
@@ -20,11 +26,11 @@ function compute_wavefun(ham, cal_way, Cheb, PD::PDegreeML{N}) where {N}
     for l = 2:N
         Xl = random_orbital(T, dof, PD, l)
         ψl1, U0, U1, U2 = compute_cheb_recur(H, Xl, coef[1:Ml[l-1]+1],
-            E1, E2, true)
+            			  E1, E2, true)
         ψml[2l-2] = copy(ψl1)
         ψml[2l-1] = compute_cheb_recur!(ψl1, H, U0, U1, U2,
-            coef[Ml[l-1]+2:Ml[l]+1],
-            E1, E2, false)
+										coef[Ml[l-1]+2:Ml[l]+1], E1,
+										E2, Val(size(U0,2)), false)
     end
 
     return ψml
@@ -43,7 +49,8 @@ function compute_wavefun(ham, cal_way, Cheb, EC::ECutoffML{N}) where {N}
     ψml[1] = compute_cheb_recur(H[1], X0, coef, E1, E2)
     for l = 2:N
         Xl2 = random_orbital(T, size(H[l], 1), EC, l)
-        Xl1 = transfer_blochwave_kpt(Xl2, ham[l].basis, ham[l].kpoint, ham[l-1].basis, ham[l-1].kpoint)
+        Xl1 = transfer_blochwave_kpt(Xl2, ham[l].basis, ham[l].kpoint, 
+									 ham[l-1].basis, ham[l-1].kpoint)
 
         ψml[2l-2] = compute_cheb_recur(H[l-1], Xl1, coef, E1, E2)
         ψml[2l-1] = compute_cheb_recur(H[l], Xl2, coef, E1, E2)
@@ -52,22 +59,30 @@ function compute_wavefun(ham, cal_way, Cheb, EC::ECutoffML{N}) where {N}
     return ψml
 end
 
-function compute_cheb_recur(H, U0, coef, E1, E2, Ureturn=false)
-    m1, m2 = size(H, 1), size(U0, 2)
-    TH = coef[1] * U0
-    inv_E2 = inv(E2)
-    SE2 = 2 * inv_E2
-
-    U1 = similar(U0)
-    U2 = similar(U0)
-    S2_mul!(U1, H, U0, E1, inv_E2)
-    mul!(TH, coef[2], U1, true, true)
-
-    compute_cheb_recur!(TH, H, U0, U1, U2, coef[3:end], E1, E2, Ureturn)
+function count_orbital_by_wf(ψ::Vector{T}, ::MLMC{N}) where {T<:AbstractArray,N}
+    @assert length(ψ) == 2N - 1
+    size.(ψ, 2)[1:2:2N-1]
 end
 
-function compute_cheb_recur!(TH, H, U0, U1, U2, coef,
-    E1, E2, Ureturn::Bool)
+function compute_cheb_recur(H, U0, coef, E1, E2, Ureturn=false)
+    TH = coef[1] * U0
+    U1 = similar(U0)
+    U2 = similar(U0)
+
+    N = size(U0, 2)
+	if !iszero(N)
+		inv_E2 = inv(E2)
+		SE2 = 2 * inv_E2
+		S2_mul!(U1, H, U0, E1, inv_E2)
+		mul!(TH, coef[2], U1, true, true)
+	end
+
+    compute_cheb_recur!(TH, H, U0, U1, U2, coef[3:end], E1, E2, Val(N), Ureturn)
+end
+    					
+function compute_cheb_recur!(TH, H, U0, U1, U2,
+    					     coef, E1, E2, ::Val{N}, 
+							 Ureturn::Bool) where {N}
     @assert size(coef, 2) == 1
     inv_E2 = inv(E2)
     SE2 = 2 * inv_E2
@@ -82,6 +97,16 @@ function compute_cheb_recur!(TH, H, U0, U1, U2, coef,
         copy!(U1, U2)
     end
 
+    if Ureturn
+        return TH, U0, U1, U2
+    else
+        return TH
+    end
+end
+
+function compute_cheb_recur!(TH, H, U0, U1, U2,
+    					     coef, E1, E2, ::Val{0}, 
+							 Ureturn::Bool) 
     if Ureturn
         return TH, U0, U1, U2
     else
