@@ -24,7 +24,7 @@ function optimal_mlmc(basis, FD::Union{Real,ChebInfo},
     Ml = Int.(optimal_hierarchy(pmax, ph, Q0, PD.ML, basis, PD; kws...))
 
     vars, ψ, hambl = estimate_var(basis, FD, PDegreeML(Ml, PD.nsl, PD.d); ρ, kws...)
-    opt_nsl = optimal_ns(vars, Ml, tot_tol)
+    opt_nsl = optimal_ns(vars[1], Ml, tot_tol)
     
     PDegreeML(Ml, opt_nsl, PD.d), vars, ψ, hambl
 end
@@ -81,7 +81,7 @@ function optimal_mlmc(basis, FD::Union{Real,ChebInfo},
                             slope, scfres_ref, kws...)
     vars, ψ, hambl = estimate_var(basis, FD, ECutoffML(basis, Ecl, EC.nsl, EC.d); ρ, kws...)
     fc(l) = isone(l) ? Ecl[l]^(dim/2) : (Ecl[l]^(dim/2) + Ecl[l-1]^(dim/2))
-    opt_nsl = optimal_ns(vars, fc.(1:N), tot_tol)
+    opt_nsl = optimal_ns(vars[1], fc.(1:N), tot_tol)
 
     ECutoffML(basis, Ecl, opt_nsl, EC.d), vars, ψ, hambl
 end
@@ -208,6 +208,7 @@ function optimal_hierarchy(pmax, ph, Q0, QL,
         opt = findfirst(x -> x < vs, cs)
     end
 
+    @show ps[opt]
     Ql[pind[opt]].(0:N-1)
 end
 

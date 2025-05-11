@@ -25,10 +25,12 @@ function estimate_var(basis::PlaneWaveBasis{T}, ψ,
 					  ST::PDegreeML{N}) where {T,N}
 	var = zeros(T,N)
 	var[1] = variance(ψ[1])
+    var_mc = copy(var)
 	for l = 2:N
+        var_mc[l] = variance(ψ[2l-1])
 		var[l] = variance(ψ[2l-2],ψ[2l-1])
 	end
-	var
+	var, var_mc
 end
 
 function estimate_var(basis::PlaneWaveBasis{T}, ψ, 
@@ -36,13 +38,15 @@ function estimate_var(basis::PlaneWaveBasis{T}, ψ,
     basisl = ST.basisl
 	var = zeros(T,N)
 	var[1] = variance(ψ[1])
+    var_mc = copy(var)
 	for l = 2:N
+        var_mc[l] = variance(ψ[2l-1])
         ψ1 = transfer_blochwave_kpt(ψ[2l-2], basisl[l-1], 
 									basisl[l-1].kpoints[1],
 							   		basisl[l], basisl[l].kpoints[1])
         var[l] = variance(ψ[2l-1], ψ1)
 	end
-	var
+	var, var_mc
 end
 
 # Compute the variance of X[:,i] = (Aχ_i)*(Aχ_i)' and
