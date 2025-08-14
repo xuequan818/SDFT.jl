@@ -9,17 +9,37 @@ using Arpack, KrylovKit
 using FFTW
 using IterTools
 using Accessors
-using Folds, FoldsThreads
-using TimerOutputs
 using Printf
 
 include("basis.jl")
+
+export SmearFunction
+export Gaussian
+export FermiDirac
 include("smear.jl")
-include("sdft_method.jl")
+
+export chebyshev_info
 include("Chebyshev.jl")
+
+export SDFTMethod
+export MC, CT
+export MLMC
+export PDegreeML, PDegreeCT
+export ECutoffML, ECutoffCT
+include("sdft_method.jl")
 include("wavefun.jl")
+
+export estimate_var
 include("variance.jl")
+
+export OptimalMLMC
+export OptimalPD
+export OptimalEC
 include("mlmc.jl")
+
+export compute_stoc_density
 include("density.jl")
+
+include("supercell.jl")
 
 end # module SDFT

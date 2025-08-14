@@ -18,10 +18,11 @@ OptimalPD(ML, nsl; d=DEFAULT_DISTR) = OptimalPD(ML, nsl, d)
 
 function optimal_mlmc(basis, FD::Union{Real,ChebInfo}, 
                       PD::OptimalPD;
-                      pmax=10, ph=0.1, Q0=0, 
+                      pmax=10, ph=0.1, 
+                      Q0=200, Qc=0, 
                       ρ=guess_density(basis), 
                       tot_tol=1e-1, kws...)           
-    Ml = Int.(optimal_hierarchy(pmax, ph, Q0, PD.ML, basis, PD; kws...))
+    Ml = Int.(optimal_hierarchy(pmax, ph, Q0, PD.ML, Qc, basis, PD; kws...))
 
     vars, ψ, hambl = estimate_var(basis, FD, PDegreeML(Ml, PD.nsl, PD.d); ρ, kws...)
     opt_nsl = optimal_ns(vars[1], Ml, tot_tol)
@@ -36,11 +37,17 @@ function mlmc_cost(pdl::Function, basis::PlaneWaveBasis,
     Cl(l) = pdl(l)
 
     ne = basis.model.n_electrons
-    cost = sqrt((ne^2 - Vl(0)) * Cl(0))
+    
+    #cost = sqrt((ne^2 - Vl(0)) * Cl(0))
+    #for l = 1:N-1
+    #   cost += sqrt((Vl(l - 1) - Vl(l)) * Cl(l))
+    #end
+  
+    cost = ne * sqrt(Cl(0))
     for l = 1:N-1
-        cost += sqrt((Vl(l - 1) - Vl(l)) * Cl(l))
+        cost += (sqrt(Vl(l)) + sqrt(Vl(l-1))) * sqrt(Cl(l))
     end
-
+   
     return cost
 end
 
@@ -54,8 +61,9 @@ function eval_conv_const(basis::PlaneWaveBasis, ::OptimalPD; kws...)
     return c1, c2
 end
 
-function algebraic_hierarchy(ps, Q0, QL, ::OptimalPD{N}) where {N}
-    f(l, p) = ceil((QL - Q0) * ((l + 1) / N)^p + Q0)
+function algebraic_hierarchy(ps, Q0, QL, Qc, ::OptimalPD{N}) where {N}
+    L = N - 1
+    f(l, p) = ceil((QL - Q0) * ((l + Qc) / (L + Qc))^p + Q0)
     Qlfun = [l -> f(l, p) for p in ps]
 end
 
@@ -69,7 +77,8 @@ OptimalEC(EcL, nsl; d=DEFAULT_DISTR) = OptimalEC(EcL, nsl, d)
 
 function optimal_mlmc(basis, FD::Union{Real,ChebInfo},
                       EC::OptimalEC{N};
-                      pmax=10, ph=0.1, Q0=10, 
+                      pmax=10, ph=0.1, 
+                      Q0=10, Qc=0,
                       tot_tol=1e-1, slope=0.1, 
                       scfres_ref=nothing,
                       ρ=guess_density(basis), 
@@ -77,7 +86,7 @@ function optimal_mlmc(basis, FD::Union{Real,ChebInfo},
     model = basis.model
     dim = model.n_dim
 
-    Ecl = optimal_hierarchy(pmax, ph, Q0, EC.EcL, basis, EC; 
+    Ecl = optimal_hierarchy(pmax, ph, Q0, EC.EcL, Qc, basis, EC; 
                             slope, scfres_ref, kws...)
     vars, ψ, hambl = estimate_var(basis, FD, ECutoffML(basis, Ecl, EC.nsl, EC.d); ρ, kws...)
     fc(l) = isone(l) ? Ecl[l]^(dim/2) : (Ecl[l]^(dim/2) + Ecl[l-1]^(dim/2))
@@ -94,9 +103,16 @@ function mlmc_cost(ecl::Function, basis::PlaneWaveBasis,
     Cl(l) = ecl(l)^(dim / 2)
 
     ne = basis.model.n_electrons
-    cost = sqrt((ne^2 - Vl(0)) * Cl(0))
+   
+    #cost = sqrt((ne^2 - Vl(0)) * Cl(0))
+    #for l = 1:N-1
+    #    cost += sqrt((Vl(l - 1) - Vl(l)) * (Cl(l - 1) + Cl(l)))
+    #end   
+   
+    #cost = sqrt(4*c1 * Cl(0))
+    cost = ne * sqrt(Cl(0))
     for l = 1:N-1
-        cost += sqrt((Vl(l - 1) - Vl(l)) * (Cl(l - 1) + Cl(l)))
+        cost += (sqrt(Vl(l-1)) + sqrt(Vl(l))) * sqrt(Cl(l-1) + Cl(l))
     end
 
     return cost
@@ -168,19 +184,20 @@ function outersum!(result::AbstractMatrix, x::AbstractVector, a::Number)
     result
 end
 
-function algebraic_hierarchy(ps, Q0, QL, EC::OptimalEC{N}) where {N}
-    f(l, p) = (QL - Q0) * ((l + 1) / N)^p + Q0
+function algebraic_hierarchy(ps, Q0, QL, Qc, EC::OptimalEC{N}) where {N}
+    L = N - 1
+    f(l, p) = (QL - Q0) * ((l + c) / (L + c))^p + Q0
     Qlfun = [l -> f(l, p) for p in ps]
 end
 
-function optimal_hierarchy(pmax, ph, Q0, QL, 
+function optimal_hierarchy(pmax, ph, Q0, QL, Qc,
                            basis::PlaneWaveBasis{T},
                            MLMC::OptimalMLMC{N}; 
                            slope=nothing, 
                            kws...) where {T,N}
     @assert pmax > ph
     ps = ph:ph:pmax
-    Ql = algebraic_hierarchy(ps, Q0, QL, MLMC)
+    Ql = algebraic_hierarchy(ps, Q0, QL, Qc, MLMC)
     pind = collect(1:length(ps))
 
     c1, c2 = eval_conv_const(basis, MLMC; kws...)

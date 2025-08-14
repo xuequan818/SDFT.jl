@@ -16,13 +16,13 @@ function estimate_var(basis::PlaneWaveBasis,
     hambl = [iham.blocks[1] for iham in sdft_hamiltonian(basis, ST; kws...)]
     ψ = compute_wavefun(hambl, cal_way, Cheb, ST)
     
-    return occ^2 .* estimate_var(basis, ψ, ST), ψ, hambl
+    return occ^2 .* _estimate_var(basis, ψ, ST), ψ, hambl
 end
 
-estimate_var(basis::PlaneWaveBasis, ψ, ST::MC) = variance(ψ[1])
+_estimate_var(basis::PlaneWaveBasis, ψ, ST::MC) = variance(ψ[1])
 
-function estimate_var(basis::PlaneWaveBasis{T}, ψ, 
-					  ST::PDegreeML{N}) where {T,N}
+function _estimate_var(basis::PlaneWaveBasis{T}, ψ, 
+					   ST::PDegreeML{N}) where {T,N}
 	var = zeros(T,N)
 	var[1] = variance(ψ[1])
     var_mc = copy(var)
@@ -33,8 +33,8 @@ function estimate_var(basis::PlaneWaveBasis{T}, ψ,
 	var, var_mc
 end
 
-function estimate_var(basis::PlaneWaveBasis{T}, ψ, 
-					  ST::ECutoffML{N}) where {T,N}
+function _estimate_var(basis::PlaneWaveBasis{T}, ψ, 
+					   ST::ECutoffML{N}) where {T,N}
     basisl = ST.basisl
 	var = zeros(T,N)
 	var[1] = variance(ψ[1])
