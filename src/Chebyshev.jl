@@ -11,7 +11,9 @@ end
 function chebyshev_info(ham::HamiltonianBlock,
                         smearfs, M, cal_way::Symbol;
                         is_sqrt=true, cheb_method=KPM(),
-                        Npt=round(Int,1.1M), kws...) 
+                        Npt=round(Int,1.1M), kws...)
+    @assert cal_way in [:cal_mat, :cal_op]
+
     TT = real(eltype(ham))
     E1, E2 = S2_bound(ham, cal_way; kws...)
     pt = cos.(range(0, 2pi - pi / Npt, length=2Npt))
