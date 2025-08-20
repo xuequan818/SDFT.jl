@@ -48,7 +48,7 @@ function sdft_var_eigs(smearf::FermiDirac, λs::AbstractVector,
     return sum(D)^2 - sum(D .^ 2)
 end
 
-function run_var(Nmax::Int; Ns=500, Ecut=20, 
+function run_var(Nmax::Int; Ns=500, Ecut=15, 
                  temperature=1e-3, 
                  M=5000, tol_cheb=1e-3,
                  cal_way=:cal_mat,

@@ -2,12 +2,15 @@
 function compute_stoc_density(basis::PlaneWaveBasis, 
                               εF, ST::SDFTMethod;
                               cal_way=:cal_mat, 
+                              Cheb=nothing,
                               M=Int(1e5), kws...)
-    smearf = FermiDirac(εF, inv(basis.model.temperature))
     hambl = [iham.blocks[1] for iham in sdft_hamiltonian(basis, ST; kws...)]
-    Cheb = chebyshev_info(hambl[end], smearf, M, cal_way; kws...)
+    if isnothing(Cheb) 
+        smearf = FermiDirac(εF, inv(basis.model.temperature))
+        Cheb = chebyshev_info(hambl[end], smearf, M, cal_way; kws...)
+    end
 
-    compute_stoc_density(basis,hambl, Cheb, ST; cal_way, kws...)
+    compute_stoc_density(basis, hambl, Cheb, ST; cal_way, kws...)
 end
 
 function compute_stoc_density(basis::PlaneWaveBasis{T}, 
@@ -20,15 +23,18 @@ function compute_stoc_density(basis::PlaneWaveBasis{T},
     filled_occ = filled_occupation(basis.model)
     occfun(A::AbstractArray) = fill(filled_occ, size(A, 2))
 
-    norb = orbital_normalize(ST)
-    if !isnothing(ψin)
-        ns_in = count_orbital_by_wf(ψin, ST)
-        ns_eval = ST.nsl .- ns_in
+    function reset_ns(ST::SDFTMethod, new_ns)
         if ST isa MC
-            ST = @set ST.ns = ns_eval
+            ST = @set ST.ns = new_ns
         else
-            ST = @set ST.nsl = tuple(ns_eval...)
+            ST = @set ST.nsl = tuple(new_ns...)
         end
+        ST
+    end
+
+    if !isnothing(ψin)
+        ns_eval = ST.nsl .- count_orbital_by_wf(ψin, ST)
+        ST = reset_ns(ST, ns_eval)
     end
     
     nl = count_nl(ST)
@@ -38,6 +44,12 @@ function compute_stoc_density(basis::PlaneWaveBasis{T},
             ψ[i] = hcat(ψin[i],ψ[i])
         end
     end
+
+    if !isnothing(ψin)
+        ST = reset_ns(ST, count_orbital_by_wf(ψ, ST))
+    end
+
+    norb = orbital_normalize(ST)
     ψ = reshape(ψ, 1, 2nl-1)
     occ = occfun.(ψ)
 

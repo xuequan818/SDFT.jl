@@ -17,17 +17,22 @@ OptimalPD(ML::T, nsl::Vector{T}, d) where {T<:Integer} = OptimalPD(ML, tuple(nsl
 OptimalPD(ML, nsl; d=DEFAULT_DISTR) = OptimalPD(ML, nsl, d)
 
 function optimal_mlmc(basis, FD::Union{Real,ChebInfo}, 
-                      PD::OptimalPD;
-                      pmax=10, ph=0.1, 
-                      Q0=200, Qc=0, 
-                      ρ=guess_density(basis), 
-                      tot_tol=1e-1, kws...)           
-    Ml = Int.(optimal_hierarchy(pmax, ph, Q0, PD.ML, Qc, basis, PD; kws...))
-
-    vars, ψ, hambl = estimate_var(basis, FD, PDegreeML(Ml, PD.nsl, PD.d); ρ, kws...)
+                      PD::OptimalPD; tot_tol=1e-1, kws...)
+    Ml, vars, ψ, hambl = _optimal_mlmc(basis, FD, PD; kws...)
     opt_nsl = optimal_ns(vars[1], Ml, tot_tol)
     
     PDegreeML(Ml, opt_nsl, PD.d), vars, ψ, hambl
+end
+
+function _optimal_mlmc(basis, FD::Union{Real,ChebInfo}, 
+                       PD::OptimalPD;
+                       pmax=10, ph=0.1, 
+                       Q0=500, Qc=0, 
+                       ρ=guess_density(basis), kws...)           
+    Ml = Int.(optimal_hierarchy(pmax, ph, Q0, PD.ML, Qc, basis, PD; kws...))
+    vars, ψ, hambl = estimate_var(basis, FD, PDegreeML(Ml, PD.nsl, PD.d); ρ, kws...)
+    
+    (; Ml, vars, ψ, hambl)
 end
 
 # Var[ϕ̂_χ^ℓ - ϕ] ≤ c1exp(-2*c2*M_ℓ)
@@ -76,23 +81,28 @@ OptimalEC(EcL::T, nsl::Vector{T}, d) where {T<:Integer} = OptimalEC(EcL, tuple(n
 OptimalEC(EcL, nsl; d=DEFAULT_DISTR) = OptimalEC(EcL, nsl, d)
 
 function optimal_mlmc(basis, FD::Union{Real,ChebInfo},
-                      EC::OptimalEC{N};
-                      pmax=10, ph=0.1, 
-                      Q0=10, Qc=0,
-                      tot_tol=1e-1, slope=0.1, 
-                      scfres_ref=nothing,
-                      ρ=guess_density(basis), 
+                      EC::OptimalEC{N}; tot_tol=1e-1, 
                       kws...) where {N}
-    model = basis.model
-    dim = model.n_dim
-
-    Ecl = optimal_hierarchy(pmax, ph, Q0, EC.EcL, Qc, basis, EC; 
-                            slope, scfres_ref, kws...)
-    vars, ψ, hambl = estimate_var(basis, FD, ECutoffML(basis, Ecl, EC.nsl, EC.d); ρ, kws...)
+    Ecl, vars, ψ, hambl = _optimal_mlmc(basis, FD, EC; kws...)
+    dim = basis.model.n_dim
     fc(l) = isone(l) ? Ecl[l]^(dim/2) : (Ecl[l]^(dim/2) + Ecl[l-1]^(dim/2))
     opt_nsl = optimal_ns(vars[1], fc.(1:N), tot_tol)
 
     ECutoffML(basis, Ecl, opt_nsl, EC.d), vars, ψ, hambl
+end
+
+function _optimal_mlmc(basis, FD::Union{Real,ChebInfo},
+                       EC::OptimalEC{N};
+                       pmax=10, ph=0.1, 
+                       Q0=8, Qc=0.1, slope=0.1, 
+                       scfres_ref=nothing,
+                       ρ=guess_density(basis), 
+                       kws...) where {N}
+    Ecl = optimal_hierarchy(pmax, ph, Q0, EC.EcL, Qc, basis, EC; 
+                            slope, scfres_ref, kws...)
+    vars, ψ, hambl = estimate_var(basis, FD, ECutoffML(basis, Ecl, EC.nsl, EC.d); ρ, kws...)
+    
+    Ecl, vars, ψ, hambl
 end
 
 # Var[ϕ̂_χ^ℓ - ϕ] ≤ c1exp(-2*c2*√E_{c,ℓ})
@@ -109,7 +119,6 @@ function mlmc_cost(ecl::Function, basis::PlaneWaveBasis,
     #    cost += sqrt((Vl(l - 1) - Vl(l)) * (Cl(l - 1) + Cl(l)))
     #end   
    
-    #cost = sqrt(4*c1 * Cl(0))
     cost = ne * sqrt(Cl(0))
     for l = 1:N-1
         cost += (sqrt(Vl(l-1)) + sqrt(Vl(l))) * sqrt(Cl(l-1) + Cl(l))
@@ -119,8 +128,8 @@ function mlmc_cost(ecl::Function, basis::PlaneWaveBasis,
 end
 
 function eval_conv_const(basis::PlaneWaveBasis, ::OptimalEC;
-                         scfres_ref=nothing, Ecut_ref=50, 
-                         Ecuts=20:2:30, kws...)
+                         scfres_ref=nothing, Ecut_ref=30, 
+                         Ecuts=10:2:20, kws...)
     if isnothing(scfres_ref)
         basis_ref = PlaneWaveBasis(basis, Ecut_ref)
         scfres_ref = self_consistent_field(basis_ref)
@@ -186,7 +195,7 @@ end
 
 function algebraic_hierarchy(ps, Q0, QL, Qc, EC::OptimalEC{N}) where {N}
     L = N - 1
-    f(l, p) = (QL - Q0) * ((l + c) / (L + c))^p + Q0
+    f(l, p) = (QL - Q0) * ((l + Qc) / (L + Qc))^p + Q0
     Qlfun = [l -> f(l, p) for p in ps]
 end
 

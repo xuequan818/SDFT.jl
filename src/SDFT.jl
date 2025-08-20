@@ -35,6 +35,7 @@ include("variance.jl")
 export OptimalMLMC
 export OptimalPD
 export OptimalEC
+export optimal_mlmc
 include("mlmc.jl")
 
 export compute_stoc_density
