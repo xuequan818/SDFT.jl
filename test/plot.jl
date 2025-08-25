@@ -47,14 +47,13 @@ plot!(P, 0:L, varpd[1], lw=4, m=:utriangle, label=L"\mathbb{V}[\widehat{\phi}^{(
 
 # energy cutoff
 L = 2
-varec, Qlec, _ = run_mlmcec_var(L; Nmax=1, Q0=7.1, Ecut=12, tol_cheb=1e-4);
+varec, Qlec, ψ, basis, Cheb, ρ = run_mlmcec_var(L; Nmax=1, Q0=7.1, Ecut=12, tol_cheb=1e-4);
 
 P = plot(yscale=:log10, xlabel="ℓ", ylabel="", guidefontsize=22, title="", label="", tickfontsize=20, legendfontsize=19, legend=:bottomleft, grid=:off, box=:on, size=(770, 660), titlefontsize=20, left_margin=2mm, right_margin=2mm, top_margin=4mm, dpi=500)
 plot!(P, 0:L, xticks=collect(0:L), varec[2], yscale=:log10, lw=4, markershape=:c, label=L"\mathbb{V}[\widehat{\phi}^{(\ell)}_\chi]", markersize=10, ls=:dash)
 plot!(P, 0:L, varec[1], lw=4, m=:utriangle, label=L"\mathbb{V}[\widehat{\phi}^{(\ell)}_\chi- \widehat{\phi}^{(\ell-1)}_\chi]", markersize=10)
 
-
-# mlmc variance
+# mlmc cost
 include("mlmc_cost.jl")
 # polynomial degree
 L = 2

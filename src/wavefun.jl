@@ -51,7 +51,6 @@ function compute_wavefun(ham, cal_way, Cheb, EC::ECutoffML{N}) where {N}
         Xl2 = random_orbital(T, size(H[l], 1), EC, l)
         Xl1 = transfer_blochwave_kpt(Xl2, ham[l].basis, ham[l].kpoint, 
 									 ham[l-1].basis, ham[l-1].kpoint)
-
         ψml[2l-2] = compute_cheb_recur(H[l-1], Xl1, coef, E1, E2)
         ψml[2l-1] = compute_cheb_recur(H[l], Xl2, coef, E1, E2)
     end

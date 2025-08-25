@@ -9,3 +9,5 @@
 /not_needed
 /test_cluster
 *.DS_Store
+/data
+/images

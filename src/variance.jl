@@ -44,7 +44,7 @@ function _estimate_var(basis::PlaneWaveBasis{T}, ψ,
         ψ1 = transfer_blochwave_kpt(ψ[2l-2], basisl[l-1], 
 									basisl[l-1].kpoints[1],
 							   		basisl[l], basisl[l].kpoints[1])
-        var[l] = variance(ψ[2l-1], ψ1)
+        var[l] = variance(ψ1, ψ[2l-1])
 	end
 	var, var_mc
 end

@@ -245,4 +245,4 @@ function estimate_digits(x::Real)
     return Int(dm + dr)
 end
 
-optimal_ns(vars, costs, tot_tol) = ceil.(Int, sqrt.(vars ./ costs) .* inv(tot_tol)^2 * sum(sqrt.(vars .* costs)))
+optimal_ns(vars, costs, tot_tol) = ceil.(Int, inv(tot_tol)^2 * sqrt.(vars ./ costs) .* sum(sqrt.(vars .* costs)))
