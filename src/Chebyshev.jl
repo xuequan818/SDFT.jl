@@ -132,8 +132,9 @@ end
 function S2_bound(ham::HamiltonianBlock, cal_way::Symbol;
                   lb_fac=0.2, ub_fac=0.2, eigen_maxiter=1, kws...)
     vmin, vmax = eigs_minmax(ham, Val(cal_way), eigen_maxiter)
-	vmin = vmin - lb_fac
-    vmax = vmax + ub_fac
+    width = vmax - vmin
+    vmin = vmin - lb_fac * width
+    vmax = vmax + ub_fac * width
 
     E1 = (vmax + vmin) / 2
     E2 = (vmax - vmin) / 2

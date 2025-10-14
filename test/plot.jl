@@ -39,7 +39,7 @@ plot!(P, xxs, fx.(xxs), color=:black, lw=3, ls=:dash, alpha=0.5, label="")
 include("mlmc_var.jl")
 # polynomial degree
 L = 3
-varpd, Qlpd, _ = run_mlmcpd_var(L; Nmax=1, Ecut=10, Q0=500, Qc=0);
+varpd, Qlpd, _ = run_mlmcpd_var(L; Nmax=1, Ecut=10, Q0=100, Qc=0);
 
 P = plot(yscale=:log10, xlabel="ℓ", ylabel="", guidefontsize=22, title="", label="", ylims=(10^(round(log10(minimum(varpd[1]))-0.5)), 10^(0.2+ceil(log10(maximum(varpd[2]))))), tickfontsize=20, legendfontsize=19, legend=:bottomleft, grid=:off, box=:on, size=(770, 660), titlefontsize=20, left_margin=2mm, right_margin=2mm, top_margin=4mm, dpi=500)
 plot!(P, 0:L, xticks=collect(0:L), varpd[2], yscale=:log10, lw=4, markershape=:c, label=L"\mathbb{V}[\widehat{\phi}^{(\ell)}_\chi]", markersize=10, ls=:dash)
@@ -56,18 +56,35 @@ plot!(P, 0:L, varec[1], lw=4, m=:utriangle, label=L"\mathbb{V}[\widehat{\phi}^{(
 # mlmc cost
 include("mlmc_cost.jl")
 # polynomial degree
-L = 2
-ϵs = sqrt.([0.1, 0.05])
-err_mc, err_pd, cost = run_mlmcpd_cost(L, ϵs; Nmax=1, Ecut=12, tol_cheb=1e-4)
-P = plot(xlabel="Cost", ylabel=L"\Delta\rho", guidefontsize=22, title="",  tickfontsize=20, legendfontsize=19, legend=:bottomleft, grid=:off, box=:on, size=(770, 660), titlefontsize=20, left_margin=2mm, right_margin=2mm, top_margin=4mm, dpi=500, scale=:log10)
-plot!(P, cost, err_mc, lw=4, markershape=:c, label="sDFT", markersize=10, ls=:dash)
-plot!(P, cost, err_pd, lw=4, m=:utriangle, label="MLMC", markersize=10)
+N1s = [1,2,3]
+N2s = [1]
+Ecuts=[10.0]
+temperatures = [1e-2, 1e-3]
+lne = length(N1s) * length(N2s)
+Ls = reshape(fill(1, lne) .* [2,3]', lne, 1, 2)
+pd_t, mc_t, Ne, ns, Ms = run_mlmc_costs(:mlmcpd; Ls, N1s, N2s, Ecuts, temperatures, tol_cheb=2e-4)
+
+P = plot(xlabel=L"$nN$", ylabel="Wall time (s)", guidefontsize=22, title="",  tickfontsize=20, legendfontsize=19, legend=:topleft, grid=:off, box=:on, size=(770, 660), titlefontsize=20, left_margin=2mm, right_margin=2mm, top_margin=4mm, dpi=500, scale=:log10)
+for ti in 1:2
+    xs = Ne[:,:,ti] .* ns[:,:,ti]
+    plot!(P, xs, pd_t[:,:,ti], lw=1, markershape=:c, label= L"β=%$(inv(temperatures[ti]))", color=colors[ti], markersize=8, st=:scatter)
+    plot!(P, xs, mc_t[:,:,ti], lw=1, markershape=:utriangle, label= L"β=%$(inv(temperatures[ti]))", color=colors[ti], markersize=8, st=:scatter)
+end
+P
 
 # energy cutoff
-L = 2
-ϵs = sqrt.([0.1, 0.05])
-err_mc, err_ec, cost = run_mlmcec_cost(L, ϵs; Q0=7.1, Nmax=1, Ecut=12, tol_cheb=1e-4)
+N1s = [1,2,3]
+N2s = [1]
+Ecuts=[8.0, 12.0]
+temperatures = [1e-2]
+lne = length(N1s) * length(N2s)
+Ls = reshape(fill(1, lne) .* [1,2]', lne, 2, 1)
+ec_t, mc_t2, Ne2, ns2, Ms2 = run_mlmc_costs(:mlmcec; Ls, N1s, N2s, Ecuts, temperatures, tol_cheb=1e-3, cal_way=:cal_op)
 
-P = plot( xlabel="Cost", ylabel=L"\Delta\rho", guidefontsize=22, title="",   tickfontsize=20, legendfontsize=19, legend=:bottomleft, grid=:off, box=:on, size=(770, 660), titlefontsize=20, left_margin=2mm, right_margin=2mm, top_margin=4mm, dpi=500, scale=:log10)
-plot!(P, cost, err_mc, lw=4, markershape=:c, label="sDFT", markersize=10, ls=:dash)
-plot!(P, cost, err_ec, lw=4, m=:utriangle, label="MLMC", markersize=10)
+P = plot(xlabel=L"$NM$", ylabel="Wall time (s)", guidefontsize=22, title="",  tickfontsize=20, legendfontsize=19, legend=:topleft, grid=:off, box=:on, size=(770, 660), titlefontsize=20, left_margin=2mm, right_margin=2mm, top_margin=4mm, dpi=500, scale=:log10)
+for ei in 1:2
+    xs = Ne2[:,ei,:] .* Ms2[:,ei,:]
+    plot!(P, xs, ec_t[:,ei,:], lw=1, markershape=:c, label= L"E_{\rm c}=%$(Ecuts[ei])", color=colors[ei], markersize=8, st=:scatter)
+    plot!(P, xs, mc_t2[:,ei,:], lw=1, markershape=:utriangle, label= L"E_{\rm c}=%$(Ecuts[ei])", color=colors[ei], markersize=8, st=:scatter)
+end
+P
