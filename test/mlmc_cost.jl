@@ -6,31 +6,29 @@ using JLD2
 include("mlmc_var.jl")
 
 function run_mlmc_costs(ml_way::Symbol; Ls=fill(2,1,1), 
-                        N1s=[1], N2s=[1], 
-                        Ecuts=[10.0], temperatures=[1e-3], 
+                        N12s=[fill(1,2)], Ecuts=[10.0], 
+                        temperatures=[1e-3], 
                         save_file=false, kws...)
-    mlmc_time = zeros(length(N1s)*length(N2s), length(Ecuts), length(temperatures))
+    mlmc_time = zeros(length(N12s), length(Ecuts), length(temperatures))
     mc_time = copy(mlmc_time)
-    Ne = Int.(mlmc_time)
-    ns = copy(Ne)
-    Ms = copy(Ne)
-    i = 1
-    for N1 in N1s, N2 in N2s
+    Ne_mat = Int.(mlmc_time)
+    ns_mat = copy(Ne_mat)
+    Ms_mat = copy(Ne_mat)
+    for (i, N12) in enumerate(N12s)
         for (j, Ecut) in enumerate(Ecuts)
             for (k, temperature) in enumerate(temperatures)
                 if ml_way == :mlmcpd
-                    t_mlmc, t_mc, basis, Cheb = run_mlmcpd_cost(Ls[i, j, k]; N1, N2, Ecut, temperature, kws...)
+                    t_mlmc, t_mc, basis, Cheb = run_mlmcpd_cost(Ls[i, j, k]; N12[1], N12[2], Ecut, temperature, kws...)
                 elseif ml_way == :mlmcec
-                    t_mlmc, t_mc, basis, Cheb = run_mlmcec_cost(Ls[i, j, k]; N1, N2, Ecut, temperature, kws...)
+                    t_mlmc, t_mc, basis, Cheb = run_mlmcec_cost(Ls[i, j, k]; N12[1], N12[2], Ecut, temperature, kws...)
                 end
                 mlmc_time[i,j,k] = t_mlmc
                 mc_time[i,j,k] = t_mc
-                Ne[i,j,k] = take_ne(basis)
-                ns[i,j,k] = take_dof(basis)
-                Ms[i,j,k] = Cheb.order
+                Ne_mat[i,j,k] = take_ne(basis)
+                ns_mat[i,j,k] = take_dof(basis)
+                Ms_mat[i,j,k] = Cheb.order
             end
         end
-        i += 1
     end
 
     if save_file
@@ -41,9 +39,9 @@ function run_mlmc_costs(ml_way::Symbol; Ls=fill(2,1,1),
         end
         date_str = Dates.format(now(), "yyyymmdd_HH_MM_SS")
         output_file = joinpath(outdir, "$(ml_way)_cost_graphene_$(date_str).jld2")
-        jldsave(output_file; mlmc_time, mc_time, Ne, ns, Ms)
+        jldsave(output_file; mlmc_time, mc_time, Ne_mat, ns_mat, Ms_mat)
     else
-        return (; mlmc_time, mc_time, Ne, ns, Ms)
+        return (; mlmc_time, mc_time, Ne_mat, ns_mat, Ms_mat)
     end
 end
 

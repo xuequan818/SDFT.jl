@@ -56,13 +56,12 @@ plot!(P, 0:L, varec[1], lw=4, m=:utriangle, label=L"\mathbb{V}[\widehat{\phi}^{(
 # mlmc cost
 include("mlmc_cost.jl")
 # polynomial degree
-N1s = [1,2,3]
-N2s = [1]
-Ecuts=[10.0]
+N12s = [[n1,n2] for n1 in 1:3 for n2 in 1:1]
+Ecuts = [10.0]
 temperatures = [1e-2, 1e-3]
 lne = length(N1s) * length(N2s)
 Ls = reshape(fill(1, lne) .* [2,3]', lne, 1, 2)
-pd_t, mc_t, Ne, ns, Ms = run_mlmc_costs(:mlmcpd; Ls, N1s, N2s, Ecuts, temperatures, tol_cheb=2e-4)
+pd_t, mc_t, Ne, ns, Ms = run_mlmc_costs(:mlmcpd; Ls, N12s, Ecuts, temperatures, tol_cheb=2e-4)
 
 P = plot(xlabel=L"$nN$", ylabel="Wall time (s)", guidefontsize=22, title="",  tickfontsize=20, legendfontsize=19, legend=:topleft, grid=:off, box=:on, size=(770, 660), titlefontsize=20, left_margin=2mm, right_margin=2mm, top_margin=4mm, dpi=500, scale=:log10)
 for ti in 1:2
@@ -73,13 +72,12 @@ end
 P
 
 # energy cutoff
-N1s = [1,2,3]
-N2s = [1]
-Ecuts=[8.0, 12.0]
+N12s = [[n1, n2] for n1 in 1:3 for n2 in 1:1]
+Ecuts = [8.0, 12.0]
 temperatures = [1e-2]
 lne = length(N1s) * length(N2s)
 Ls = reshape(fill(1, lne) .* [1,2]', lne, 2, 1)
-ec_t, mc_t2, Ne2, ns2, Ms2 = run_mlmc_costs(:mlmcec; Ls, N1s, N2s, Ecuts, temperatures, tol_cheb=1e-3, cal_way=:cal_op)
+ec_t, mc_t2, Ne2, ns2, Ms2 = run_mlmc_costs(:mlmcec; Ls, N12s, Ecuts, temperatures, tol_cheb=1e-3, cal_way=:cal_op)
 
 P = plot(xlabel=L"$NM$", ylabel="Wall time (s)", guidefontsize=22, title="",  tickfontsize=20, legendfontsize=19, legend=:topleft, grid=:off, box=:on, size=(770, 660), titlefontsize=20, left_margin=2mm, right_margin=2mm, top_margin=4mm, dpi=500, scale=:log10)
 for ei in 1:2
