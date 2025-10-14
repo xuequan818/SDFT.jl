@@ -18,9 +18,9 @@ function run_mlmc_costs(ml_way::Symbol; Ls=fill(2,1,1),
         for (j, Ecut) in enumerate(Ecuts)
             for (k, temperature) in enumerate(temperatures)
                 if ml_way == :mlmcpd
-                    t_mlmc, t_mc, basis, Cheb = run_mlmcpd_cost(Ls[i, j, k]; N12[1], N12[2], Ecut, temperature, kws...)
+                    t_mlmc, t_mc, basis, Cheb = run_mlmcpd_cost(Ls[i, j, k]; N1=N12[1], N2=N12[2], Ecut, temperature, kws...)
                 elseif ml_way == :mlmcec
-                    t_mlmc, t_mc, basis, Cheb = run_mlmcec_cost(Ls[i, j, k]; N12[1], N12[2], Ecut, temperature, kws...)
+                    t_mlmc, t_mc, basis, Cheb = run_mlmcec_cost(Ls[i, j, k]; N1=N12[1], N2=N12[2], Ecut, temperature, kws...)
                 end
                 mlmc_time[i,j,k] = t_mlmc
                 mc_time[i,j,k] = t_mc
