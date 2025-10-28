@@ -4,7 +4,8 @@ using LinearAlgebra
 using Dates
 using JLD2
 
-function run_err_rho(Ns; Nmax=3, Ecut=15, 
+function run_err_rho(Ns; case_setup="graphene",
+                     Nmax=3, Ecut=15, 
                      temperature=1e-3, 
                      M=5000, tol_cheb=1e-5,
                      cal_way=:cal_mat,
@@ -12,7 +13,8 @@ function run_err_rho(Ns; Nmax=3, Ecut=15,
     Error = Vector{Float64}[]
     Ne = Int[]
     for ni in 1:Nmax
-        basis = graphene_setup([ni,ni]; Ecut, temperature)
+        fun = eval(Symbol(case_setup, "_setup"))
+        basis = fun([ni, ni]; Ecut, temperature)
         dof = length(basis.kpoints[1].mapping)
         push!(Ne, basis.model.n_electrons)
         println(" SIZE = ($ni, $ni),  DOF = $(dof) \n")
@@ -40,8 +42,8 @@ function run_err_rho(Ns; Nmax=3, Ecut=15,
         catch 
             @__DIR__
         end
-        date_str = Dates.format(now(), "yyyymmdd_HH_MM_SS")
-        output_file = joinpath(outdir, "density_graphene_$(Nmax)n_$(date_str).jld2")
+        date_str = Dates.format(now(), "yyyymmdd_HH_MM")
+        output_file = joinpath(outdir, "density_$(case_setup)_$(date_str).jld2")
         jldsave(output_file; Ns, Ecut, temperature, Ne, Error)
     else
         return (; Ne, Ns, Error)

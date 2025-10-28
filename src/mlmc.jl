@@ -41,11 +41,10 @@ function mlmc_cost(pdl::Function, basis::PlaneWaveBasis,
     Vl(l) = c1*exp(-2 * c2 * pdl(l))
     Cl(l) = pdl(l)
 
-    ne = basis.model.n_electrons
-    
-    cost = ne * sqrt(Cl(0))
+    cost = basis.model.n_electrons * sqrt(Cl(0))
     for l = 1:N-1
-        cost += (sqrt(Vl(l)) + sqrt(Vl(l-1))) * sqrt(Cl(l))
+        #cost += (sqrt(Vl(l)) + sqrt(Vl(l-1))) * sqrt(Cl(l))
+        cost += sqrt((Vl(l - 1) - Vl(l)) * Cl(l))
     end
    
     return cost
