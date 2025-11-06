@@ -130,8 +130,8 @@ end
 
 # scaling and shifting (S2) operations
 function S2_bound(ham::HamiltonianBlock, cal_way::Symbol;
-                  lb_fac=0.2, ub_fac=0.2, eigen_maxiter=1, kws...)
-    vmin, vmax = eigs_minmax(ham, Val(cal_way), eigen_maxiter)
+                  lb_fac=0.2, ub_fac=0.2, tol_eigen=1.0, kws...)
+    vmin, vmax = eigs_minmax(ham, Val(cal_way), tol_eigen)
     width = vmax - vmin
     vmin = vmin - lb_fac * width
     vmax = vmax + ub_fac * width
@@ -143,20 +143,20 @@ function S2_bound(ham::HamiltonianBlock, cal_way::Symbol;
 	return E1, E2
 end
 
-function eigs_minmax(ham::HamiltonianBlock, ::Val{:cal_op}, maxiter)
+function eigs_minmax(ham::HamiltonianBlock, ::Val{:cal_op}, tol)
     T = eltype(ham)
     ψ0 = rand(T, size(ham,1))
     ψ0 = ψ0 ./ norm(ψ0)
     H_ψ(ψ) = ham * ψ
-    vmin = real(KrylovKit.eigsolve(H_ψ, ψ0, 1, :SR; maxiter)[1][1])
-    vmax = real(KrylovKit.eigsolve(H_ψ, ψ0, 1, :LR; maxiter)[1][1])
+    vmin = real(KrylovKit.eigsolve(H_ψ, ψ0, 1, :SR; tol)[1][1])
+    vmax = real(KrylovKit.eigsolve(H_ψ, ψ0, 1, :LR; tol)[1][1])
     return vmin, vmax
 end
 
-function eigs_minmax(ham::HamiltonianBlock, ::Val{:cal_mat}, maxiter)
+function eigs_minmax(ham::HamiltonianBlock, ::Val{:cal_mat}, tol)
     H = Matrix(ham)
-    vmin = real(KrylovKit.eigsolve(H, 1, :SR; maxiter)[1][1])
-    vmax = real(KrylovKit.eigsolve(H, 1, :LR; maxiter)[1][1])
+    vmin = real(KrylovKit.eigsolve(H, 1, :SR; tol)[1][1])
+    vmax = real(KrylovKit.eigsolve(H, 1, :LR; tol)[1][1])
     return vmin, vmax
 end
 

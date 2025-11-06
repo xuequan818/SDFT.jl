@@ -23,5 +23,5 @@ occupation, εF = DFTK.compute_occupation(ham.basis, eigres.λ)
 ρref = compute_density(ham.basis, eigres.X, occupation)
 
 
-@time ρct = compute_stoc_density(basis, εF, CT(); M=1000, tol_cheb=1e-8, eigen_maxiter=5);
+@time ρct = compute_stoc_density(basis, εF, CT(); M=1000, tol_cheb=1e-8);
 @show norm(ρct-ρref)

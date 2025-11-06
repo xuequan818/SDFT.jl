@@ -39,9 +39,9 @@ plot!(P, xxs, fx.(xxs), color=:black, lw=3, ls=:dash, alpha=0.5, label="")
 include("mlmc_var.jl")
 # polynomial degree
 L = 4
-varpd, Qlpd, _ = run_mlmcpd_var(L; temperature=1e-4, tol_cheb=5e-5, N1=1, N2=1, Ecut=15, Q0=85, Ns=200);
+varpd, Qlpd, _ = run_mlmcpd_var(L; case_setup="doping", temperature=1e-4, tol_cheb=5e-5, N1=2, N2=1, Ecut=15, Q0=85, Ns=50, slope=0.3);
 
-P = plot(yscale=:log10, xlabel="ℓ", ylabel="", guidefontsize=22, title="", label="", ylims=(10^(round(log10(minimum(varpd[1]))-0.5)), 10^(0.2+ceil(log10(maximum(varpd[2]))))), tickfontsize=20, legendfontsize=19, legend=:bottomleft, grid=:off, box=:on, size=(770, 660), titlefontsize=20, left_margin=2mm, right_margin=2mm, top_margin=4mm, dpi=500)
+P = plot(yscale=:log10, xlabel="ℓ", ylabel="", guidefontsize=22, title="", label="",tickfontsize=20, legendfontsize=19, legend=:bottomleft, grid=:off, box=:on, size=(770, 660), titlefontsize=20, left_margin=2mm, right_margin=2mm, top_margin=4mm, dpi=500)
 plot!(P, 0:L, xticks=collect(0:L), varpd[2], yscale=:log10, lw=4, markershape=:c, label=L"\mathbb{V}[\widehat{\phi}^{(\ell)}_\chi]", markersize=10, ls=:dash)
 plot!(P, 0:L, varpd[1], lw=4, m=:utriangle, label=L"\mathbb{V}[\widehat{\phi}^{(\ell)}_\chi- \widehat{\phi}^{(\ell-1)}_\chi]", markersize=10)
 

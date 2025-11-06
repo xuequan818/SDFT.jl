@@ -119,11 +119,10 @@ end
 function _optimal_mlmc(basis, FD::Union{Real,ChebInfo},
                        EC::OptimalEC{N};
                        pmax=10, ph=0.1, 
-                       Q0=8, Qc=0.1, slope=0.1, 
+                       Q0=8, Qc=0.1,
                        ρ=guess_density(basis), 
                        kws...) where {N}
-    Ecl = optimal_hierarchy(pmax, ph, Q0, EC.EcL, Qc, basis, EC; 
-                            slope, ρ, kws...)
+    Ecl = optimal_hierarchy(pmax, ph, Q0, EC.EcL, Qc, basis, EC; ρ, kws...)
     vars, ψ, hambl = estimate_var(basis, FD, ECutoffML(basis, Ecl, EC.nsl, EC.d); ρ, kws...)
     
     Ecl, vars, ψ, hambl
@@ -255,13 +254,24 @@ function optimal_hierarchy(pmax, ph, Q0, QL, Qc,
     end
     filter!(!isnan, cs)
     
-    if isnothing(slope)
-        opt = findmin(cs)[2]
-    else
+    opt = findmin(cs)[2]
+    if !isnothing(slope)
         @assert slope >= 0
-        vn = 10^estimate_digits(maximum(cs))
-        vs = cs[findfirst(x->x<slope*vn, abs.(cs[2:end].-cs[1:end-1])./ph)]
-        opt = findfirst(x -> x < vs, cs)
+
+        ind1 = findall(x -> x < 0, cs[2:end] .- cs[1:end-1])
+        ind2 = findall(x -> x > 0, cs[2:end] .- cs[1:end-1]) .+ 1
+        maxima = intersect(ind1, ind2)
+
+        range = 2:opt
+        if length(maxima) > 0 && !all(x -> x > opt, maxima)
+            maxind = intersect(findall(x -> x < opt, maxima), findmin(abs.(maxima .- opt))[2])[1]
+            range = maxima[maxind]+1:opt
+        end
+
+        vn = 10^(SDFT.estimate_digits(cs[range[1]] - cs[range[end]]))
+        ind = findlast(x -> x > cs[opt] + vn * slope, cs[range])
+        isnothing(ind) && (ind = 1)
+        opt = range[ind]
     end
 
     @show ps[opt]

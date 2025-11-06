@@ -3,12 +3,11 @@ using LaTeXStrings
 using PythonPlot
 const plt = PythonPlot
 using SDFT
-using SDFT: graphene_supercell
 
 begin
     DATA_DIR = "plots/data"
     IMAGE_DIR = "plots/images"
-    CASES = ["graphene", "graphene", "graphene"]
+    CASES = ["graphene", "stone_wales", "doping"]
 end
 
 begin
@@ -106,6 +105,7 @@ sdft_var_combined = let
         end
         data = load(files[1])
         Ne = data["Ne"]
+        ind = Int[]
         for element in unique(Ne)
             index = findfirst(==(element), Ne)
             push!(ind, index)
