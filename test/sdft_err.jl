@@ -36,15 +36,19 @@ function run_err_rho(Ns; case_setup="graphene",
         push!(Error, err)
     end
 
-    if save_file
-        outdir = try
-            joinpath(@__DIR__, "..", "data")
-        catch 
-            @__DIR__
-        end
+    function save_output(outdir)
         date_str = Dates.format(now(), "yyyymmdd_HH_MM")
         output_file = joinpath(outdir, "density_$(case_setup)_$(date_str).jld2")
         jldsave(output_file; Ns, Ecut, temperature, Ne, Error)
+    end
+
+    if save_file
+        try
+            outdir = joinpath(@__DIR__, "..", "data")
+            save_output(outdir)
+        catch
+            save_output(@__DIR__)
+        end
     else
         return (; Ne, Ns, Error)
     end

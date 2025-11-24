@@ -78,15 +78,19 @@ function run_var(Nmax::Int; case_setup="graphene",
         end
     end
     
-    if save_file
-        outdir = try
-            joinpath(@__DIR__, "..", "data")
-        catch 
-            @__DIR__
-        end
+    function save_output(outdir)
         date_str = Dates.format(now(), "yyyymmdd_HH_MM")
         output_file = joinpath(outdir, "variance_$(case_setup)_$(date_str).jld2")
         jldsave(output_file; Ns, Ecut, temperature, Ne, Var, VarT)
+    end
+
+    if save_file
+        try
+            outdir = joinpath(@__DIR__, "..", "data")
+            save_output(outdir)
+        catch
+            save_output(@__DIR__)
+        end
     else
         return (; Ne, Var, VarT)
     end

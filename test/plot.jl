@@ -38,8 +38,8 @@ plot!(P, xxs, fx.(xxs), color=:black, lw=3, ls=:dash, alpha=0.5, label="")
 # mlmc variance
 include("mlmc_var.jl")
 # polynomial degree
-L = 4
-varpd, Qlpd, _ = run_mlmcpd_var(L; case_setup="doping", temperature=1e-4, tol_cheb=5e-5, N1=2, N2=1, Ecut=15, Q0=85, Ns=50, slope=0.3);
+L = 2
+varpd, Qlpd, _ = run_mlmcpd_var(L; case_setup="doping", temperature=5e-3, tol_cheb=5e-5, N1=2, N2=1, Ecut=15, Q0=85, Ns=50, opt_ratio=0.3);
 
 P = plot(yscale=:log10, xlabel="ℓ", ylabel="", guidefontsize=22, title="", label="",tickfontsize=20, legendfontsize=19, legend=:bottomleft, grid=:off, box=:on, size=(770, 660), titlefontsize=20, left_margin=2mm, right_margin=2mm, top_margin=4mm, dpi=500)
 plot!(P, 0:L, xticks=collect(0:L), varpd[2], yscale=:log10, lw=4, markershape=:c, label=L"\mathbb{V}[\widehat{\phi}^{(\ell)}_\chi]", markersize=10, ls=:dash)
@@ -72,12 +72,12 @@ end
 P
 
 # energy cutoff
-repeats = [[n1, n2] for n1 in 1:3 for n2 in 1:1]
-Ecuts = [20.0, 30.0, 40.0]
+repeats = [[n1, n2] for n1 in 1:2 for n2 in 1:1]
+Ecuts = [20.0]
 temperatures = [1e-2]
 lne = length(repeats)
 Ls = reshape(fill(1, lne) .* [1,2,3]', lne, length(Ecuts), 1)
-ec_t, mc_t2, Ne2, ns2, Ms2, vars2, Qls2 = run_mlmc_costs(:mlmcec; Ns=200, Ls, repeats, Ecuts, temperatures, tol_cheb=nothing, M=200, cal_way=:cal_op, Q0_ec=10.0)
+ec_t, mc_t2, Ne2, ns2, Ms2, vars2, Qls2 = run_mlmc_costs(:mlmcec; Ns=200, Ls, repeats, Ecuts, temperatures, tol_cheb=nothing, M=200, cal_way=:cal_op, Q0_ec=5.0)
 
 P = plot(xlabel=L"$NM$", ylabel="Wall time (s)", guidefontsize=22, title="",  tickfontsize=20, legendfontsize=19, legend=:topleft, grid=:off, box=:on, size=(770, 660), titlefontsize=20, left_margin=2mm, right_margin=2mm, top_margin=4mm, dpi=500, scale=:log10)
 for ei in 1:3

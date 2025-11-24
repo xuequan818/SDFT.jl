@@ -29,16 +29,20 @@ function run_mlmcpd_var(L; case_setup="graphene",
     Ns = f30.(Ns)
     @time Ql, var, ψ, hambl0 = _optimal_mlmc(basis, Cheb, OptimalPD(Cheb.order, Ns); ρ, cal_way, Q0, Qc, kws...);
 
-    if save_file
-        outdir = try
-            joinpath(@__DIR__, "..", "data")
-        catch 
-            @__DIR__
-        end
+    function save_output(outdir)
         date_str = Dates.format(now(), "yyyymmdd_HH_MM")
         output_file = joinpath(outdir, "mlmcpd_var_$(case_setup)_$(date_str).jld2")
         ChebInfo = [Cheb.E1, Cheb.E2, Cheb.order, Cheb.coef]
         jldsave(output_file; Ecut, temperature, N1, N2, Ql, var, ψ, ChebInfo, ρ)
+    end
+
+    if save_file
+        try
+            outdir = joinpath(@__DIR__, "..", "data")
+            save_output(outdir)
+        catch
+            save_output(@__DIR__)
+        end
     else
         return (; var, Ql, ψ, basis, Cheb, ρ)
     end
@@ -67,16 +71,20 @@ function run_mlmcec_var(L; case_setup="graphene",
     Ns = f30.(Ns)
     @time Ql, var, ψ, hambl0 = _optimal_mlmc(basis, Cheb, OptimalEC(Ecut, Ns); ρ, cal_way, Q0, Qc, kws...);
 
-    if save_file
-        outdir = try
-            joinpath(@__DIR__, "..", "data")
-        catch 
-            @__DIR__
-        end
+    function save_output(outdir)
         date_str = Dates.format(now(), "yyyymmdd_HH_MM")
         output_file = joinpath(outdir, "mlmcec_var_$(case_setup)_$(date_str).jld2")
         ChebInfo = [Cheb.E1, Cheb.E2, Cheb.order, Cheb.coef]
         jldsave(output_file; Ecut, temperature, N1, N2, Ql, var, ψ, ChebInfo, ρ)
+    end
+
+    if save_file
+        try
+            outdir = joinpath(@__DIR__, "..", "data")
+            save_output(outdir)
+        catch
+            save_output(@__DIR__)
+        end
     else
         return (; var, Ql, ψ, basis, Cheb, ρ)
     end

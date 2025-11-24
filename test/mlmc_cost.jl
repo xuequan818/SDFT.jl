@@ -10,9 +10,13 @@ function run_mlmc_costs(ml_way::Symbol;
                         Ls=fill(2, 1, 1),
                         repeats=[fill(1, 2)], Ecuts=[10.0],
                         temperatures=[1e-3],
+                        opt_ratios=fill(nothing, max(length(Ecuts), 
+                                        length(temperatures))),
                         save_file=false, 
                         Q0_pd=85, Q0_ec=10.0, kws...)
-    mlmc_time = zeros(length(repeats), length(Ecuts), length(temperatures))
+    lE = length(Ecuts)
+    lT = length(temperatures)
+    mlmc_time = zeros(length(repeats), lE, lT)
     mc_time = copy(mlmc_time)
     Ne_mat = Int.(mlmc_time)
     ns_mat = copy(Ne_mat)
@@ -22,10 +26,11 @@ function run_mlmc_costs(ml_way::Symbol;
     for (i, N12) in enumerate(repeats)
         for (j, Ecut) in enumerate(Ecuts)
             for (k, temperature) in enumerate(temperatures)
+                opt_ratio = lT ≥ lE ? opt_ratios[k] : opt_ratios[j]
                 if ml_way == :mlmcpd
-                    t_mlmc, t_mc, basis, Cheb, var, Ql = run_mlmcpd_cost(Ls[i, j, k]; case_setup, N1=N12[1], N2=N12[2], Ecut, temperature, Q0=Q0_pd, kws...)
+                    t_mlmc, t_mc, basis, Cheb, var, Ql = run_mlmcpd_cost(Ls[i, j, k]; case_setup, N1=N12[1], N2=N12[2], Ecut, temperature, Q0=Q0_pd, opt_ratio, kws...)
                 elseif ml_way == :mlmcec
-                    t_mlmc, t_mc, basis, Cheb, var, Ql = run_mlmcec_cost(Ls[i, j, k]; case_setup, N1=N12[1], N2=N12[2], Ecut, temperature, Q0=Q0_ec, kws...)
+                    t_mlmc, t_mc, basis, Cheb, var, Ql = run_mlmcec_cost(Ls[i, j, k]; case_setup, N1=N12[1], N2=N12[2], Ecut, temperature, Q0=Q0_ec*prod(N12)^(-2/3), opt_ratio, kws...)
                     #Q0_ec*prod(N12)^(-2/3)
                 end
                 mlmc_time[i, j, k] = t_mlmc
@@ -39,15 +44,19 @@ function run_mlmc_costs(ml_way::Symbol;
         end
     end
 
-    if save_file
-        outdir = try
-            joinpath(@__DIR__, "..", "data")
-        catch
-            @__DIR__
-        end
+    function save_output(outdir)
         date_str = Dates.format(now(), "yyyymmdd_HH_MM")
         output_file = joinpath(outdir, "$(ml_way)_cost_$(case_setup)_$(date_str).jld2")
         jldsave(output_file; Ecuts, temperatures, mlmc_time, mc_time, Ne_mat, ns_mat, Ms_mat, var_mat, Ql_mat)
+    end
+
+    if save_file
+        try
+            outdir = joinpath(@__DIR__, "..", "data")
+            save_output(outdir)
+        catch
+            save_output(@__DIR__)
+        end
     else
         return (; mlmc_time, mc_time, Ne_mat, ns_mat, Ms_mat, var_mat, Ql_mat)
     end

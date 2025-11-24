@@ -225,7 +225,7 @@ end
 function optimal_hierarchy(pmax, ph, Q0, QL, Qc,
                            basis::PlaneWaveBasis{T},
                            MLMC::OptimalMLMC{N}; 
-                           slope=nothing, 
+                           opt_ratio=nothing, 
                            pcustom::Union{Nothing,Real}=nothing, 
                            kws...) where {T,N}
     if !isnothing(pcustom)
@@ -255,23 +255,19 @@ function optimal_hierarchy(pmax, ph, Q0, QL, Qc,
     filter!(!isnan, cs)
     
     opt = findmin(cs)[2]
-    if !isnothing(slope)
-        @assert slope >= 0
+    if !isnothing(opt_ratio)
+        @assert opt_ratio >= 0
 
-        ind1 = findall(x -> x < 0, cs[2:end] .- cs[1:end-1])
-        ind2 = findall(x -> x > 0, cs[2:end] .- cs[1:end-1]) .+ 1
-        maxima = intersect(ind1, ind2)
+        pks = findmaxima(cs) |> peakproms!() |> peakwidths()
+        maxima = filterpeaks!(pks, :widths; min=0.1/ph).indices
+        maxind = findlast(x -> x < opt, maxima)
+        lmax = isnothing(maxind) ? 1 : maxima[maxind]
 
-        range = 2:opt
-        if length(maxima) > 0 && !all(x -> x > opt, maxima)
-            maxind = intersect(findall(x -> x < opt, maxima), findmin(abs.(maxima .- opt))[2])[1]
-            range = maxima[maxind]+1:opt
-        end
-
-        vn = 10^(SDFT.estimate_digits(cs[range[1]] - cs[range[end]]))
-        ind = findlast(x -> x > cs[opt] + vn * slope, cs[range])
+        #dist = estimate_digits(cs[lmax] - cs[opt])
+        dist = cs[lmax] - cs[opt]
+        ind = findlast(x -> x > cs[opt] + dist * opt_ratio, cs[lmax:opt])
         isnothing(ind) && (ind = 1)
-        opt = range[ind]
+        opt = (lmax:opt)[ind]
     end
 
     @show ps[opt]
@@ -279,10 +275,10 @@ function optimal_hierarchy(pmax, ph, Q0, QL, Qc,
 end
 
 function estimate_digits(x::Real)
-    @assert x > 0
+    iszero(x) && return zero(x)
     dm = floor(log10(x))
     dr = round(x / 10^(dm + 1))
-    return Int(dm + dr)
+    return 10^Int(dm + dr)
 end
 
 optimal_ns(vars, costs, tot_tol) = ceil.(Int, inv(tot_tol)^2 * sqrt.(vars ./ costs) .* sum(sqrt.(vars .* costs)))

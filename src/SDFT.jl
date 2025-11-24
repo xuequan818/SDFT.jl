@@ -8,6 +8,7 @@ using LinearAlgebra
 using Arpack, KrylovKit
 using FFTW
 using IterTools
+using Peaks
 using Accessors
 using Printf
 
