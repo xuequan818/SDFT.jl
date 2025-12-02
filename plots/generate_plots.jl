@@ -21,11 +21,11 @@ end
 
 begin
     plt.rc("font", family="serif")
-    plt.rc("axes", titlesize=24, labelsize=20, grid=false)
+    plt.rc("axes", titlesize=24, labelsize=22, grid=false)
     plt.rc("axes.spines", top=false, right=false)
     plt.rc("xtick", labelsize=20)
     plt.rc("ytick", labelsize=20)
-    plt.rc("legend", fontsize=18, frameon=false)
+    plt.rc("legend", fontsize=22, frameon=false)
     plt.rc("lines", linewidth=1.5)
     plt.rc("savefig", dpi=500)
     plt.rc("text", usetex="True")
@@ -53,8 +53,8 @@ sdft_var = let
         xs = Ne.^2
 
         fig, ax = plt.subplots(figsize=(figsize[1], figsize[2]))
-        ax.scatter(xs, Var, marker=".", s=360, alpha=0.9, label="sDFT")
-        ax.scatter(xs, VarT, marker="^", s=120, alpha=0.9, label="sDFT theory")
+        ax.scatter(xs, Var, marker=".", s=390, alpha=0.9, label="sDFT")
+        ax.scatter(xs, VarT, marker="^", s=130, alpha=0.9, label="sDFT prediction")
         ax.legend()
         ax.set_yscale("log")
         ax.set_xscale("log")
@@ -178,7 +178,8 @@ sdft_density_error = let
         for (j, ne) in enumerate(Ne)
             err = Err[j]
             xs = @. sqrt(Ne[j]) / sqrt(Ns)
-            ax.scatter(xs, err, label=L"N=%$ne"; neplot[j]...)
+            ns = j+1
+            ax.scatter(xs, err, label=L"%$(ns) \times %$(ns)"; neplot[j]...)
         end
 
         xxs = vcat([@. sqrt(Ne[i]) / sqrt(Ns) for i = 1:3]...)
@@ -376,12 +377,12 @@ mlmc_pd_var = let
         ax.plot(xs, var[2], linestyle="--", 
                 linewidth=2, 
                 marker="o", 
-                markersize=10,
+                markersize=11,
                 label=L"\mathbb{V}[\widehat{\upphi}^{(\ell)}_\chi]")
         ax.plot(xs, var[1], linestyle="-",
                 linewidth=2,
                 marker="^",
-                markersize=10,
+                markersize=11,
                 label=L"\mathbb{V}[\widehat{\upphi}^{(\ell)}_\chi- \widehat{\upphi}^{(\ell-1)}_\chi]")
         ax.legend()
         ax.set_yscale("log")
@@ -424,12 +425,12 @@ mlmc_ec_var = let
         ax.plot(xs, var[2], linestyle="--",
             linewidth=2,
             marker="o",
-            markersize=10,
+            markersize=11,
             label=L"\mathbb{V}[\widehat{\upphi}^{(\ell)}_\chi]")
         ax.plot(xs, var[1], linestyle="-",
             linewidth=2,
             marker="^",
-            markersize=10,
+            markersize=11,
             label=L"\mathbb{V}[\widehat{\upphi}^{(\ell)}_\chi- \widehat{\upphi}^{(\ell-1)}_\chi]")
         ax.legend()
         ax.set_yscale("log")
