@@ -2,21 +2,63 @@
 function compute_stoc_density(basis::PlaneWaveBasis, 
                               εF, ST::SDFTMethod;
                               cal_way=:cal_mat, 
-                              Cheb=nothing,
-                              M=Int(1e5), kws...)
-    hambl = [iham.blocks[1] for iham in sdft_hamiltonian(basis, ST; kws...)]
+                              Cheb=nothing, M=Int(1e5), 
+                              tol_cheb=1e-6, kws...)
     if isnothing(Cheb) 
         smearf = FermiDirac(εF, inv(basis.model.temperature))
-        Cheb = chebyshev_info(hambl[end], smearf, M, cal_way; kws...)
+        ham = Hamiltonian(basis; kws...)
+        Cheb = chebyshev_info(ham.blocks[1], smearf, M, cal_way; tol_cheb, kws...)
     end
 
-    compute_stoc_density(basis, hambl, Cheb, ST; cal_way, kws...)
+    compute_stoc_density(basis, Cheb, ST; cal_way, kws...)
+end
+
+function compute_stoc_density(basis::PlaneWaveBasis, 
+                              Cheb::ChebInfo, 
+                              ST::SDFTMethod; 
+                              cal_way=:cal_mat, 
+                              ψin=nothing, kws...)
+    hambl = [iham.blocks[1] for iham in sdft_hamiltonian(basis, ST; kws...)]
+
+    compute_stoc_density(basis, hambl, Cheb, ST; ψin, cal_way)
+end
+
+function compute_stoc_density(basis::PlaneWaveBasis, 
+                              Cheb::ChebInfo, 
+                              ST::PDegreeML{N}; 
+                              cal_way=:cal_mat, 
+                              isoptML=true,
+                              kws...) where {N}
+    if isoptML
+        ST, var, ψin, hambl = optimal_mlmc(basis, Cheb, OptimalPD(Cheb.order, ST.nsl, ST.d); kws...)
+    else
+        hambl = [iham.blocks[1] for iham in sdft_hamiltonian(basis, ST; kws...)]
+        ψin = nothing
+    end
+
+    compute_stoc_density(basis, hambl, Cheb, ST; ψin, cal_way)
+end
+
+function compute_stoc_density(basis::PlaneWaveBasis, 
+                              Cheb::ChebInfo, 
+                              ST::ECutoffML{N}; 
+                              cal_way=:cal_mat, 
+                              isoptML=true, 
+                              kws...) where {N}
+    if isoptML
+        ST, var, ψin, hambl = optimal_mlmc(basis, Cheb, OptimalEC(basis.Ecut, ST.nsl, ST.d); kws...)
+    else
+        hambl = [iham.blocks[1] for iham in sdft_hamiltonian(basis, ST; kws...)]
+        ψin = nothing
+    end
+
+    compute_stoc_density(basis, hambl, Cheb, ST; ψin, cal_way)
 end
 
 function compute_stoc_density(basis::PlaneWaveBasis{T}, 
                               hambl, Cheb::ChebInfo, 
                               ST::SDFTMethod; ψin=nothing,
-                              cal_way=:cal_mat, kws...) where {T} 
+                              cal_way=:cal_mat) where {T} 
     @assert length(basis.kpoints) == 1
 
     TT = complex(T)

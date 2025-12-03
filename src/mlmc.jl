@@ -1,13 +1,6 @@
 # Optimal MLMC
 abstract type OptimalMLMC{N} end
 
-function optimal_mlmc(basis, MLMC::OptimalMLMC; Ecut_init=50, kws...)
-    basis_init = PlaneWaveBasis(basis, Ecut_init)
-    scfres_init = self_consistent_field(basis_init)
-
-    optimal_mlmc(basis, scfres_init.εF, MLMC; scfres_ref=scfres_init, kws...)
-end
-
 struct OptimalPD{N} <: OptimalMLMC{N}
     ML::Integer
     nsl::NTuple{N,Integer}
@@ -27,7 +20,7 @@ end
 function _optimal_mlmc(basis, FD::Union{Real,ChebInfo}, 
                        PD::OptimalPD;
                        pmax=10, ph=0.1, 
-                       Q0=500, Qc=0, 
+                       Q0=100, Qc=0, 
                        ρ=guess_density(basis), kws...)           
     Ml = Int.(optimal_hierarchy(pmax, ph, Q0, PD.ML, Qc, basis, PD; ρ, kws...))
     vars, ψ, hambl = estimate_var(basis, FD, PDegreeML(Ml, PD.nsl, PD.d); ρ, kws...)
@@ -119,7 +112,7 @@ end
 function _optimal_mlmc(basis, FD::Union{Real,ChebInfo},
                        EC::OptimalEC{N};
                        pmax=10, ph=0.1, 
-                       Q0=8, Qc=0.1,
+                       Q0=6, Qc=0.1,
                        ρ=guess_density(basis), 
                        kws...) where {N}
     Ecl = optimal_hierarchy(pmax, ph, Q0, EC.EcL, Qc, basis, EC; ρ, kws...)
@@ -146,22 +139,18 @@ end
 function eval_conv_const(basis::PlaneWaveBasis, ::OptimalEC;
                          ρ=nothing, Ecut_ref=30, 
                          Ecuts=10:2:20, kws...)
-    if isnothing(ρ)
-        basis_ref = PlaneWaveBasis(basis, Ecut_ref)
-        scfres_ref = self_consistent_field(basis_ref)
-        smearf = FermiDirac(scfres_ref.εF, inv(basis.model.temperature))
-        c1, c2 = eval_ec_const(Ecuts, scfres_ref.basis, scfres_ref.eigenvalues[1],
-                               scfres_ref.ψ[1], x->sqrt(evalf(x, smearf)), scfres_ref.ρ)
-    else
-        basis_ref = PlaneWaveBasis(basis, Ecut_ref)
-        ρref = transfer_density(ρ,basis, basis_ref)
-        ham = Hamiltonian(basis_ref; ρ=ρref)
-        nbands = AdaptiveBands(basis.model).n_bands_compute
-        eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, nbands; ψguess=nothing) 
-        occupation, εF = DFTK.compute_occupation(ham.basis, eigres.λ)
-        smearf = FermiDirac(εF, inv(basis.model.temperature))
-        c1, c2 = eval_ec_const(Ecuts, basis_ref, eigres.λ[1], eigres.X[1], x->sqrt(evalf(x, smearf)), ρref)
+    if isnothing(ρ) 
+        ρ = guess_density(basis)
     end
+    
+    basis_ref = PlaneWaveBasis(basis, Ecut_ref)
+    ρref = transfer_density(ρ, basis, basis_ref)
+    ham = Hamiltonian(basis_ref; ρ=ρref)
+    nbands = AdaptiveBands(basis.model).n_bands_compute
+    eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, nbands; ψguess=nothing) 
+    occupation, εF = DFTK.compute_occupation(ham.basis, eigres.λ)
+    smearf = FermiDirac(εF, inv(basis.model.temperature))
+    c1, c2 = eval_ec_const(Ecuts, basis_ref, eigres.λ[1], eigres.X[1], x->sqrt(evalf(x, smearf)), ρref)
 
     return 4 * c1 * basis.model.n_electrons, c2
 end
@@ -270,7 +259,6 @@ function optimal_hierarchy(pmax, ph, Q0, QL, Qc,
         opt = (lmax:opt)[ind]
     end
 
-    @show ps[opt]
     Ql[pind[opt]].(0:N-1)
 end
 

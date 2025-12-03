@@ -72,6 +72,7 @@ struct PDegreeML{N} <: MLMC{N}
 end
 PDegreeML(Ml, nsl, d::Union{Distribution,Nothing}) = PDegreeML(tuple(Ml...), tuple(nsl...), d)
 PDegreeML(Ml, nsl; d=DEFAULT_DISTR) = PDegreeML(Ml, nsl, d)
+PDegreeML(nsl) = PDegreeML(zero(nsl), nsl)
 PDegreeCT(Ml) = PDegreeML(Ml, zero.(Ml); d=nothing)
 
 # Energy cutoff multilevel
@@ -93,4 +94,5 @@ function ECutoffML(basis::PlaneWaveBasis, Ecl, nsl,
     ECutoffML(basisl, tuple(nsl...), d)
 end
 ECutoffML(basis, Ecl, nsl; d=DEFAULT_DISTR) = ECutoffML(basis, Ecl, nsl, d)
+ECutoffML(basis, nsl) = ECutoffML(basis, zero(nsl), nsl)
 ECutoffCT(basis, Ecl) = ECutoffML(basis, Ecl, Int.(zero.(Ecl)); d=nothing)
