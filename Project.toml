@@ -1,7 +1,7 @@
 name = "SDFT"
 uuid = "cf42e0f7-6d48-47b6-bdd6-b7610c6d69a1"
-authors = ["xquan818 <xuequan818@gmail.com>"]
 version = "1.0.0"
+authors = ["xquan818 <xuequan818@gmail.com>"]
 
 [deps]
 Accessors = "7d9f7c33-5ae7-4f3b-8dc6-eff91059b697"
@@ -19,6 +19,7 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 PseudoPotentialData = "5751a51d-ac76-4487-a056-413ecf6fbe19"
 
 [compat]
+Arpack = "0.5"
 DFTK = "0.7.16"
 Distributions = "0.25.120"
 ExtXYZ = "0.2.2"
