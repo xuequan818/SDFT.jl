@@ -1,6 +1,6 @@
 name = "SDFT"
 uuid = "cf42e0f7-6d48-47b6-bdd6-b7610c6d69a1"
-authors = ["xquan818 <xuequan818@gmail.com>"]
+authors = ["xuequan818 <xuequan818@gmail.com>"]
 version = "1.0.0"
 
 [deps]

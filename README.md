@@ -1,7 +1,6 @@
 # SDFT.jl
 
-A code companion for [![DOI](https://img.shields.io/badge/DOI-10.48550/arXiv.2510.15369-blue)](https://doi.org/10.48550/arXiv.2510.15369), which utilizes the stochastic density functional theory (sDFT) combined with a multilevel Monte Carlo framework to efficiently evaluate the electron density under plane-wave discretization. This approach significantly decreases the variance while avoiding the computationally expensive diagonalization process.
-
+A Julia package for efficient electron density evaluation under plane-wave discretization. It implements stochastic density functionsal theory (sDFT) within a multilevel Monte Carlo approach, which avoids the computationally expensive diagonalization step while effectively reducing stochastic noise.
 
 ## Installation
 SDFT.jl is an unregistered package and therefore needs to be downloaded or cloned to the user's local computer first, and then installed by running
@@ -53,3 +52,14 @@ The data supporting all figures in [![DOI](https://img.shields.io/badge/DOI-10.4
 julia> include("plots/generate_plots.jl")
 ```
 
+## Citation
+```bibtex
+@misc{QuanChen2025,
+	title = {Stochastic Density Functional Theory Through the Lens of Multilevel {Monte Carlo} Method},
+	author = {Quan, Xue and Chen, Huajie},
+    year={2025},
+    eprint={2512.04860},
+    archivePrefix={arXiv},
+    url={https://arxiv.org/abs/2512.04860}
+}
+```
