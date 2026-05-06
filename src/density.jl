@@ -142,7 +142,6 @@ function accumulate_stoc_density!(ρtot, basis::PlaneWaveBasis, ψ, occ,
     else
         ρ_coarse = compute_density_single_k(basisl[l-1], @view(ψ[1:1]), @view(occ[1:1]))
         ρ_fine = compute_density_single_k(basisl[l], @view(ψ[2:2]), @view(occ[2:2]))
-        err = Nc * norm(transfer_density(ρ_fine, basisl[l], basis) - transfer_density(ρ_coarse, basisl[l-1], basis))
         ρtot .+= Nc .* transfer_density(ρ_fine, basisl[l], basis) .- 
                  Nc .* transfer_density(ρ_coarse, basisl[l-1], basis)
     end
