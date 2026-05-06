@@ -23,22 +23,36 @@ end
 
 pos_map(x) = x >= 0 ? x : zero(x)
 
+function random_orbital(T, dof, rng::UnitRange{Int64}, d::Nothing)
+    X = zeros(T, dof, length(rng))
+    for (i, ir) in enumerate(rng)
+        X[ir,i] = one(T)
+    end
+    return X
+end
+random_orbital(T, dof, rng::UnitRange{Int64}, d::Uniform) = T.(exp.(im .* rand(d, dof, length(rng))))
+random_orbital(T, dof, rng::UnitRange{Int64}, ST::SDFTMethod) = random_orbital(T, dof, rng, ST.d)
+
+#random_orbital(T, dof, M::MC) = isnothing(M.d) ? Matrix{T}(I, dof, dof) : T.(exp.(im .* rand(M.d, dof, M.ns)))
+
+orbital_size(dof, ST::SDFTMethod, l::Integer) = isnothing(ST.d) ? dof : ST.nsl[l]
+
+function reset_ns(ST::SDFTMethod, new_ns::Union{T,Vector{T}}) where {T<:Integer}
+    ST_new = @set ST.nsl = tuple(new_ns...)
+end
+
 # Monte Carlo SDFT (One level)
 struct MC <: SDFTMethod 
-	ns::Integer
+    nsl::NTuple{1,Integer}
     d::Union{Distribution,Nothing}
-	function MC(ns::Integer, d::Union{Distribution,Nothing})
-		new(pos_map(ns), d)
+    function MC(nsl::NTuple{1,Integer}, d::Union{Distribution,Nothing})
+		new(pos_map.(nsl), d)
 	end
 end
-MC(ns::Integer) = MC(ns::Integer, DEFAULT_DISTR)
-CT() = MC(0, nothing)
+MC(nsl; d=DEFAULT_DISTR) = MC(tuple(nsl...), d)
+CT() = MC(0; d=nothing)
 
 count_nl(::MC) = 1
-
-random_orbital(T, dof, M::MC) = random_orbital(T, dof, M.ns, M.d)
-
-orbital_normalize(M::MC) = isnothing(M.d) ? one(M.ns) : inv(M.ns)
 
 # Multilevel Monte Carlo SDFT 
 abstract type MLMC{N} <: SDFTMethod end
@@ -48,15 +62,6 @@ abstract type MLMC{N} <: SDFTMethod end
 end
 
 count_nl(::MLMC{N}) where {N} = N
-
-function random_orbital(T, dof, ML::MLMC{N}, l::Integer) where {N}
-	@assert l <= N 
-	random_orbital(T, dof, ML.nsl[l], ML.d)
-end
-random_orbital(T, dof, ns, d::Nothing) = Matrix{T}(I, dof, dof)
-random_orbital(T, dof, ns, d::Uniform) = T.(exp.(im .* rand(d, dof, ns)))
-
-orbital_normalize(ML::MLMC) = isnothing(ML.d) ? one.(ML.nsl) : inv.(ML.nsl)
 
 # Polynomial degree multilevel
 struct PDegreeML{N} <: MLMC{N}

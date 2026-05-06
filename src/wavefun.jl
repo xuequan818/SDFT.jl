@@ -1,99 +1,143 @@
-function compute_wavefun(ham, cal_way, Cheb, ST::MC)
-    H = S2_ham(ham[1], Val(cal_way), Cheb.E1, Cheb.E2)
-    X = random_orbital(eltype(H), size(H, 1), ST)
-    ψ = compute_cheb_recur(H, X, Cheb.coef, Cheb.E1, Cheb.E2)
-	return [ψ]
+function compute_wavefun(ham, cal_way, Cheb, ST::SDFTMethod; batch_size=256)
+    Hs = [S2_ham(iham, Val(cal_way), Cheb.E1, Cheb.E2) for iham in ham]
+    dofs, cols_list = get_total_cols_list(Hs, ST)
+    num_levels = count_nl(ST)
+    ψml = [zeros(eltype(Hs[1]), dofs[i], cols_list[i]) for i = 1:length(dofs)]
+
+    for l in 1:num_levels
+        out_indices = (l == 1) ? (1:1) : (2l-2:2l-1)
+        total_cols_l = cols_list[2l-1]
+
+        for start_col in 1:batch_size:total_cols_l
+            end_col = min(start_col + batch_size - 1, total_cols_l)
+            batch_range = start_col:end_col
+            target_views = [view(ψml[i], :, batch_range) for i in out_indices]
+
+            compute_wavefun_batch!(target_views, Hs, ham, Cheb, l, batch_range, ST)
+        end
+    end
+
+    return ψml
 end
 
-function count_orbital_by_wf(ψ::Vector{T}, ::MC) where {T<:AbstractArray}
-	@assert length(ψ) = 1
-	size.(ψ, 2)[1]
+count_orbital_by_wf(ψ::Nothing, ::SDFTMethod) = [0]
+
+function count_orbital_by_wf(ψ::Vector{<:AbstractArray}, ::SDFTMethod)
+    N = length(ψ)
+    @assert isodd(N)
+    size.(ψ, 2)[1:2:N]
 end
 
-function compute_wavefun(ham, cal_way, Cheb, PD::PDegreeML{N}) where {N}
-    coef = Cheb.coef
-    E1 = Cheb.E1
-    E2 = Cheb.E2
-    H = S2_ham(ham[1], Val(cal_way), E1, E2)
-    T = eltype(H)
-    dof = size(H, 1)
+function get_total_cols_list(H, ST::MC)
+    dof = size(H[1], 1)
+    cols = [orbital_size(dof, ST, 1)]
 
+    return [dof], cols
+end
+
+function get_total_cols_list(H, PD::PDegreeML{N}) where {N}
+    dof = size(H[1], 1)
+    coltmp = [orbital_size(dof, PD, l) for l = 1:N]
+    cols = fill(coltmp[1], 2N - 1)
+    for l = 2:N
+        cols[2l-2] = coltmp[l]
+        cols[2l-1] = coltmp[l]
+    end
+    dofs = fill(dof, 2N - 1)
+
+    return dofs, cols
+end
+
+function get_total_cols_list(H, EC::ECutoffML{N}) where {N}
+    doftmp = size.(H, 1)
+    coltmp = [orbital_size(doftmp[l], EC, l) for l = 1:N]
+    cols = fill(coltmp[1], 2N - 1)
+    dofs = fill(doftmp[1], 2N - 1)
+    for l = 2:N
+        cols[2l-2] = coltmp[l-1]
+        cols[2l-1] = coltmp[l]
+        dofs[2l-2] = doftmp[l-1]
+        dofs[2l-1] = doftmp[l]
+    end
+
+    return dofs, cols
+end
+
+function compute_wavefun_batch!(ψ, Hs, ham, Cheb, l, rng, ST::MC)
+    E1, E2, coef = Cheb.E1, Cheb.E2, Cheb.coef
+    X = random_orbital(eltype(Hs[1]), size(Hs[1], 1), rng, ST)
+    compute_cheb_recur!(ψ[1], Hs[1], X, coef, E1, E2)
+    return nothing
+end
+
+function compute_wavefun_batch!(ψ, Hs, ham, Cheb, l, rng, PD::PDegreeML)
+    E1, E2, coef = Cheb.E1, Cheb.E2, Cheb.coef
+    H = Hs[1]
+    X = random_orbital(eltype(H), size(H, 1), rng, PD)
     Ml = PD.Ml
-    ψml = Vector{Matrix{T}}(undef, 2N - 1)
 
-    X0 = random_orbital(T, dof, PD, 1)
-    ψml[1] = compute_cheb_recur(H, X0, coef[1:Ml[1]+1], E1, E2)
-    for l = 2:N
-        Xl = random_orbital(T, dof, PD, l)
-        ψl1, U0, U1, U2 = compute_cheb_recur(H, Xl, coef[1:Ml[l-1]+1],
-            			  E1, E2, true)
-        ψml[2l-2] = copy(ψl1)
-        ψml[2l-1] = compute_cheb_recur!(ψl1, H, U0, U1, U2,
-										coef[Ml[l-1]+2:Ml[l]+1], E1,
-										E2, Val(size(U0,2)), false)
-    end
-
-    return ψml
+    if l == 1
+        compute_cheb_recur!(ψ[1], H, X, coef[1:Ml[1]+1], E1, E2)
+    else
+        _, U0, U1, U2 = compute_cheb_recur!(ψ[1], H, X, coef[1:Ml[l-1]+1],
+            			                    E1, E2, true)
+        copy!(ψ[2], ψ[1])
+        _compute_cheb_recur!(ψ[2], H, U0, U1, U2,
+							 coef[Ml[l-1]+2:Ml[l]+1], E1,
+							 E2, Val(size(U0,2)), false)   
+    end                                  
 end
 
-function compute_wavefun(ham, cal_way, Cheb, EC::ECutoffML{N}) where {N}
-    coef = Cheb.coef
-    E1 = Cheb.E1
-    E2 = Cheb.E2
-    H = [S2_ham(iham, Val(cal_way), E1, E2) for iham in ham]
-    T = eltype(H[1])
+function compute_wavefun_batch!(ψ, Hs, ham, Cheb, l, rng, EC::ECutoffML)
+    E1, E2, coef = Cheb.E1, Cheb.E2, Cheb.coef
+    T = eltype(Hs[1])
 
-    ψml = Vector{Matrix{T}}(undef, 2N - 1)
-
-    X0 = random_orbital(T, size(H[1], 1), EC, 1)
-    ψml[1] = compute_cheb_recur(H[1], X0, coef, E1, E2)
-    for l = 2:N
-        Xl2 = random_orbital(T, size(H[l], 1), EC, l)
-        Xl1 = transfer_blochwave_kpt(Xl2, ham[l].basis, ham[l].kpoint, 
-									 ham[l-1].basis, ham[l-1].kpoint)
-        ψml[2l-2] = compute_cheb_recur(H[l-1], Xl1, coef, E1, E2)
-        ψml[2l-1] = compute_cheb_recur(H[l], Xl2, coef, E1, E2)
+    if l == 1
+        X = random_orbital(T, size(Hs[1], 1), rng, EC)
+        compute_cheb_recur!(ψ[1], Hs[1], X, coef, E1, E2)
+    else
+        X2 = random_orbital(T, size(Hs[l], 1), rng, EC)
+        X1 = transfer_blochwave_kpt(X2, ham[l].basis, ham[l].kpoint, 
+									ham[l-1].basis, ham[l-1].kpoint)
+        compute_cheb_recur!(ψ[1], Hs[l-1], X1, coef, E1, E2)
+        compute_cheb_recur!(ψ[2], Hs[l], X2, coef, E1, E2)
     end
-
-    return ψml
-end
-
-function count_orbital_by_wf(ψ::Vector{T}, ::MLMC{N}) where {T<:AbstractArray,N}
-    @assert length(ψ) == 2N - 1
-    size.(ψ, 2)[1:2:2N-1]
 end
 
 function compute_cheb_recur(H, U0, coef, E1, E2, Ureturn=false)
-    TH = coef[1] * U0
+    TH = similar(U0)
+    compute_cheb_recur!(TH, H, U0, coef, E1, E2, Ureturn)
+end
+
+function compute_cheb_recur!(TH, H, U0, coef, E1, E2, Ureturn=false)
+    @. TH = coef[1] * U0
     U1 = similar(U0)
     U2 = similar(U0)
 
     N = size(U0, 2)
 	if !iszero(N)
 		inv_E2 = inv(E2)
-		SE2 = 2 * inv_E2
 		S2_mul!(U1, H, U0, E1, inv_E2)
-		mul!(TH, coef[2], U1, true, true)
+        axpy!(coef[2], U1, TH)
 	end
 
-    compute_cheb_recur!(TH, H, U0, U1, U2, coef[3:end], E1, E2, Val(N), Ureturn)
+    coef_view = view(coef, 3:lastindex(coef))
+    _compute_cheb_recur!(TH, H, U0, U1, U2, coef_view, E1, E2, Val(N), Ureturn)
 end
     					
-function compute_cheb_recur!(TH, H, U0, U1, U2,
+function _compute_cheb_recur!(TH, H, U0, U1, U2,
     					     coef, E1, E2, ::Val{N}, 
 							 Ureturn::Bool) where {N}
     @assert size(coef, 2) == 1
-    inv_E2 = inv(E2)
-    SE2 = 2 * inv_E2
+    SE2 = 2 * inv(E2)
 
     for ic in coef
         # compute U2 = 2 * H * U1 - U0
         S2_mul!(U2, H, U1, E1, SE2)
-        broadcast!(-, U2, U2, U0)
-        mul!(TH, ic, U2, true, true)
+        axpy!(-1.0, U0, U2)
+        axpy!(ic, U2, TH)
 
-        copy!(U0, U1)
-        copy!(U1, U2)
+        U0, U1, U2 = U1, U2, U0
     end
 
     if Ureturn
@@ -103,7 +147,7 @@ function compute_cheb_recur!(TH, H, U0, U1, U2,
     end
 end
 
-function compute_cheb_recur!(TH, H, U0, U1, U2,
+function _compute_cheb_recur!(TH, H, U0, U1, U2,
     					     coef, E1, E2, ::Val{0}, 
 							 Ureturn::Bool) 
     if Ureturn

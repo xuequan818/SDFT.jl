@@ -1,4 +1,5 @@
 using DFTK
+using LinearAlgebra
 
 # 1D case
 a = 20
@@ -9,7 +10,7 @@ gauss = ElementGaussian(1.0, 0.2)
 atoms = [gauss,gauss]
 n_electrons = 2
 terms = [Kinetic(), AtomicLocal()]
-temperature = 1e-1
+temperature = 1.0
 
 model = Model(lattice, atoms, positions; n_electrons, terms, temperature, spin_polarization=:spinless)
 basis = PlaneWaveBasis(model; Ecut=1000, kgrid=(1, 1, 1));
@@ -22,6 +23,6 @@ occupation, εF = DFTK.compute_occupation(ham.basis, eigres.λ)
 """ρout = ∑_{i}^{band}f_i|ψ(x)|^2"""
 ρref = compute_density(ham.basis, eigres.X, occupation)
 
-
-@time ρct = compute_stoc_density(basis, εF, CT(); M=1000, tol_cheb=1e-8);
+@time ρct = compute_stoc_density(basis, εF, CT(); M=10000, tol_cheb=1e-8);
 @show norm(ρct-ρref)
+

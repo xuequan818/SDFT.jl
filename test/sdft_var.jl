@@ -16,7 +16,7 @@ function sdft_var_theory(basis::PlaneWaveBasis, εF::Real;
 
     if isnothing(scfres_ref)
         basis_ref = PlaneWaveBasis(basis, Ecut_ref)
-        scfres_ref = self_consistent_field(basis_ref)
+        scfres_ref = self_consistent_field(basis_ref; callback=(_) -> nothing)
     else
         basis_ref = scfres_ref.basis
     end
@@ -65,7 +65,7 @@ function run_var(Nmax::Int; case_setup="graphene",
             push!(Ne, basis.model.n_electrons)
             dof = length(basis.kpoints[1].mapping)
             println(" SIZE = ($ni, $nj),  DOF = $(dof) \n")
-            scfres = self_consistent_field(basis)
+            scfres = self_consistent_field(basis; callback=(_) -> nothing)
             ρ = scfres.ρ
             εF = scfres.εF
 

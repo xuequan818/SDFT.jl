@@ -19,7 +19,7 @@ function run_err_rho(Ns; case_setup="graphene",
         push!(Ne, basis.model.n_electrons)
         println(" SIZE = ($ni, $ni),  DOF = $(dof) \n")
  
-        scfres = self_consistent_field(basis)
+        scfres = self_consistent_field(basis; callback=(_) -> nothing)
         εF = scfres.εF
         ρ = scfres.ρ
 
