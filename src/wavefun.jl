@@ -1,26 +1,43 @@
-function compute_wavefun(ham, cal_way, Cheb, ST::SDFTMethod; batch_size=256)
-    Hs = [S2_ham(iham, Val(cal_way), Cheb.E1, Cheb.E2) for iham in ham]
-    dofs, cols_list = get_total_cols_list(Hs, ST)
-    num_levels = count_nl(ST)
-    ψml = [zeros(eltype(Hs[1]), dofs[i], cols_list[i]) for i = 1:length(dofs)]
+function compute_stoc_wavefun(hambls, cal_way, Cheb, ST::SDFTMethod; batch_size=256)
+    nk = length(hambls)
+    kdata = map(1:nk) do ik
+        ham = hambls[ik]
+        Hs = [S2_ham(iham, Val(cal_way), Cheb.E1, Cheb.E2) for iham in ham]
+        dofs, cols_list = get_total_cols_list(Hs, ST)
+        (; Hs, dofs, cols_list)
 
-    for l in 1:num_levels
-        out_indices = (l == 1) ? (1:1) : (2l-2:2l-1)
-        total_cols_l = cols_list[2l-1]
+        ψml = [zeros(eltype(Hs[1]), dofs[i], cols_list[i]) for i = 1:length(dofs)]
 
-        for start_col in 1:batch_size:total_cols_l
-            end_col = min(start_col + batch_size - 1, total_cols_l)
-            batch_range = start_col:end_col
-            target_views = [view(ψml[i], :, batch_range) for i in out_indices]
-
-            compute_wavefun_batch!(target_views, Hs, ham, Cheb, l, batch_range, ST)
-        end
+        (; ham, Hs, dofs, cols_list, ψml)
     end
 
-    return ψml
-end
+    nl = count_nl(ST)
+    tasks = map(1:nk) do ik
+        cols_list = kdata[ik].cols_list
+        [(ik=ik, l=l, start_col=start_col,
+          end_col=min(start_col + batch_size - 1, cols_list[2l-1])) 
+          for l in 1:nl for start_col in 1:batch_size:cols_list[2l-1]]
+    end
+    tasks = reduce(vcat, tasks)
 
-count_orbital_by_wf(ψ::Nothing, ::SDFTMethod) = [0]
+    parallel_loop_over_range(tasks) do task
+        ik, l, start_col, end_col = task
+
+        ham = kdata[ik].ham
+        Hs = kdata[ik].Hs
+        ψml = kdata[ik].ψml
+
+        batch_range = start_col:end_col
+        out_indices = (l == 1) ? (1:1) : (2l-2:2l-1)
+        n_out = length(out_indices)
+
+        ψ_buf = ntuple(idx -> @view(ψml[out_indices[idx]][:, batch_range]), n_out)
+
+        compute_wavefun_batch!(ψ_buf, Hs, ham, Cheb, l, batch_range, ST)
+    end
+
+    return [kdata[ik].ψml for ik in 1:nk]
+end
 
 function count_orbital_by_wf(ψ::Vector{<:AbstractArray}, ::SDFTMethod)
     N = length(ψ)
@@ -115,7 +132,7 @@ function compute_cheb_recur!(TH, H, U0, coef, E1, E2, Ureturn=false)
     U2 = similar(U0)
 
     N = size(U0, 2)
-	if !iszero(N)
+	if !iszero(N) && length(coef) > 1
 		inv_E2 = inv(E2)
 		S2_mul!(U1, H, U0, E1, inv_E2)
         axpy!(coef[2], U1, TH)

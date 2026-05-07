@@ -7,26 +7,30 @@ struct ChebInfo{T<:Real}
     order::Integer
     coef::Matrix{T}
 end
+Base.eltype(::ChebInfo{T}) where {T} = T
+cheb_bound(Cheb::ChebInfo) = (; Cheb.E1, Cheb.E2)
 
-function chebyshev_info(ham::HamiltonianBlock,
+function chebyshev_info(x::Union{PlaneWaveBasis,HamiltonianBlock}, 
                         smearfs, M, cal_way::Symbol;
                         is_sqrt=true, cheb_method=KPM(),
                         Npt=round(Int,1.1M), kws...)
     @assert cal_way in [:cal_mat, :cal_op]
+    TT = real(eltype(x))
 
-    TT = real(eltype(ham))
-    E1, E2 = S2_bound(ham, cal_way; kws...)
+    E1, E2 = S2_bound(x, cal_way; kws...)
+    @assert E2 != 0.0
+    
     pt = cos.(range(0, 2pi - pi / Npt, length=2Npt))
     newM, coef = genCheb(smearfs, is_sqrt, M, pt, E1, E2, cheb_method; kws...)
-    if iszero(newM)
-        error("No eigs in this range. S2 bound : ($(round(E1, digits=1)), $(round(E2, digits=1)))")
+    if iszero(newM) && iszero(coef)
+        @warn "No eigs in this energy range."
     end
 
     println(" Expansion order = $(newM)")
     
     ChebInfo(TT(E1),TT(E2),newM,TT.(coef))
 end
-chebyshev_info(ham, smearfs; M=Int(1e5), cal_way=:cal_mat, tol_cheb=1e-6, kws...) = chebyshev_info(ham, smearfs, M, cal_way; tol_cheb, kws...)
+chebyshev_info(x, smearfs; M=Int(1e5), cal_way=:cal_mat, tol_cheb=1e-6, kws...) = chebyshev_info(x, smearfs, M, cal_way; tol_cheb, kws...)
 
 abstract type ChebyshevMethod end
 
@@ -38,7 +42,7 @@ function genCheb(funs::Vector{<:Function},
 				 tol_cheb=nothing, kws...)
     # f(x) = \sum_{n = 0}^{M}a_n*T_n(x) 
     coef = zeros(length(funs), M + 1)
-    cM = (M + 1) * ones(Int, length(funs))
+    cM = fill(M + 1, length(funs))
     @views for (i, ifun) in enumerate(funs)
         cfi = cheb_coef_by_fft(ifun, M, pt)
         coef[i, :] = cfi
@@ -69,7 +73,7 @@ function genCheb(funs::Vector{<:Function},
     
     JDM = JacksonDamping(M)
     coef = zeros(length(funs), M + 1)
-    cM = (M + 1) * ones(Int, length(funs))
+    cM = fill(M + 1, length(funs))
     @views for (i, ifun) in enumerate(funs)
         cfi = cheb_coef_by_fft(ifun, M, pt)
         cfi[1] /= 2
@@ -82,11 +86,11 @@ function genCheb(funs::Vector{<:Function},
                 ciM = findlast(x -> abs(x) > tol_cheb, cfi)
                 isnothing(ciM) || (cM[i] = ciM)
             end
-        )       
+        )
     end
 
     Mmax = maximum(cM) - 1
-    if Mmax != M
+    if Mmax != M 
         coef = coef[:, 1:Mmax+1] .* rvec(JacksonDamping(Mmax))
     end
     
@@ -103,10 +107,10 @@ function genCheb(smearfs::Vector{<:SmearFunction}, is_sqrt,
 end
 
 function genCheb(smearf::SmearFunction, is_sqrt,
-                 M::Integer, pt::Vector{T},E1::T, 
+                 M::Integer, pt::Vector{T}, E1::T, 
                  E2::T, cheb_method::ChebyshevMethod; 
 				 kws...) where {T<:Real}
-    genCheb([smearf], is_sqrt, M, pt, E1, E2, cheb_method; kws...)
+    genCheb([smearf], is_sqrt, M, pt, E1, E2, cheb_method; kws...) 
 end
 
 function genCheb(smearfs, M::Integer,
@@ -129,18 +133,49 @@ function cheb_coef_by_fft(f::Function, M::Integer, pt::Vector{<:Real})
 end
 
 # scaling and shifting (S2) operations
-function S2_bound(ham::HamiltonianBlock, cal_way::Symbol;
-                  lb_fac=0.2, ub_fac=0.2, tol_eigen=1.0, kws...)
-    vmin, vmax = eigs_minmax(ham, Val(cal_way), tol_eigen)
+function S2_bound(basis::PlaneWaveBasis{T}, cal_way::Symbol; 
+                  lb_fac=0.2, ub_fac=0.2, 
+                  tol_eigen=0.1, kws...) where {T}
+    kgrid0 = ExplicitKpoints(SA[zeros(T,3)])
+    model = basis.model
+    pot_term_types = filter(t -> !(t isa Kinetic), model.term_types)
+    pot_model = @set model.term_types = pot_term_types
+    basis_pot = @set basis.model = pot_model
+    basis_pot0 = PlaneWaveBasis(basis_pot, kgrid0)
+    ham_pot0 = Hamiltonian(basis_pot0; kws...).blocks[1]
+    vmin, vmax = eigs_minmax(ham_pot0, Val(cal_way), tol_eigen)
     width = vmax - vmin
-    vmin = vmin - lb_fac * width
+	vmin = vmin - lb_fac * width
     vmax = vmax + ub_fac * width
 
-    E1 = (vmax + vmin) / 2
-    E2 = (vmax - vmin) / 2
+    KE_ind = findfirst(t -> t isa Kinetic, basis.model.term_types)
+    vk_min = minimum(minimum.(basis.terms[KE_ind].kinetic_energies))
+    vk_max = maximum(maximum.(basis.terms[KE_ind].kinetic_energies))
+
+    εmax = vk_max + vmax
+    εmin = vk_min + vmin
+
+    E1 = (εmax + εmin) / 2
+    E2 = (εmax - εmin) / 2
     @assert !iszero(E2)
 
 	return E1, E2
+end
+
+function S2_bound(ham::HamiltonianBlock,
+                  cal_way::Symbol; 
+                  lb_fac=0.2, ub_fac=0.2,
+                  tol_eigen=0.1, kws...)
+    vmin, vmax = eigs_minmax(ham, Val(cal_way), tol_eigen)
+    width = vmax - vmin
+	εmin = vmin - lb_fac * width
+    εmax = vmax + ub_fac * width
+
+    E1 = (εmax + εmin) / 2
+    E2 = (εmax - εmin) / 2
+    @assert !iszero(E2)
+
+    return E1, E2
 end
 
 function eigs_minmax(ham::HamiltonianBlock, ::Val{:cal_op}, tol)
@@ -176,17 +211,4 @@ end
 
 @inline function S2_mul!(Hψ, H::AbstractArray, ψ, E1, inv_E2)
     mul!(Hψ, H, ψ, inv_E2, false)
-end
-
-function dense_to_sparse(A::Matrix, tolerance::Real)
-    is, js = axes(A)
-    for j in js
-        for i in is
-            @inbounds val = A[i, j]
-            @inbounds if abs2(val) < tolerance
-                A[i, j] = 0
-            end
-        end
-    end
-    sparse(A)
 end

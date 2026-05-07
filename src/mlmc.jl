@@ -12,7 +12,7 @@ OptimalPD(ML, nsl; d=DEFAULT_DISTR) = OptimalPD(ML, nsl, d)
 function optimal_mlmc(basis, FD::Union{Real,ChebInfo}, 
                       PD::OptimalPD; tot_tol=1e-1, kws...)
     Ml, vars, ψ, hambl = _optimal_mlmc(basis, FD, PD; kws...)
-    opt_nsl = optimal_ns(vars[1], Ml, tot_tol)
+    opt_nsl = optimal_ns(vars[1,:], Ml, tot_tol)
     
     PDegreeML(Ml, opt_nsl, PD.d), vars, ψ, hambl
 end
@@ -104,7 +104,7 @@ function optimal_mlmc(basis, FD::Union{Real,ChebInfo},
     Ecl, vars, ψ, hambl = _optimal_mlmc(basis, FD, EC; kws...)
     dim = basis.model.n_dim
     fc(l) = isone(l) ? Ecl[l]^(dim/2) : (Ecl[l]^(dim/2) + Ecl[l-1]^(dim/2))
-    opt_nsl = optimal_ns(vars[1], fc.(1:N), tot_tol)
+    opt_nsl = optimal_ns(vars[1,:], fc.(1:N), tot_tol)
 
     ECutoffML(basis, Ecl, opt_nsl, EC.d), vars, ψ, hambl
 end

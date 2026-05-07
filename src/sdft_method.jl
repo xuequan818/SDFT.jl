@@ -21,6 +21,17 @@ function sdft_hamiltonian(basis::PlaneWaveBasis, ST::SDFTMethod; kws...)
     return haml
 end
 
+function all_level_ham_blocks(basis, ST; kws...)
+    hams = sdft_hamiltonian(basis, ST; kws...)
+    hambls = [Vector{HamiltonianBlock}(undef, length(hams)) for _ = 1:length(basis.kpoints)]
+    for (il, haml) in enumerate(hams)
+        for (ik, hambk) in enumerate(haml.blocks)
+            hambls[ik][il] = hambk
+        end
+    end
+    return hambls
+end
+
 pos_map(x) = x >= 0 ? x : zero(x)
 
 function random_orbital(T, dof, rng::UnitRange{Int64}, d::Nothing)

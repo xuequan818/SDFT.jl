@@ -1,7 +1,7 @@
 function estimate_var(basis::PlaneWaveBasis,
                       εF::Real, ST::SDFTMethod;
                       cal_way=:cal_mat, M=Int(5e4),
-					  tol_cheb=1e-6, kws...)
+                      tol_cheb=1e-6, kws...)
     ham = Hamiltonian(basis; kws...).blocks[1]
     smearf = FermiDirac(εF, inv(basis.model.temperature))
     Cheb = chebyshev_info(ham, smearf, M, cal_way; tol_cheb, kws...)
@@ -9,137 +9,98 @@ function estimate_var(basis::PlaneWaveBasis,
     estimate_var(basis, Cheb, ST; cal_way, kws...)
 end
 
-function estimate_var(basis::PlaneWaveBasis,
-                      Cheb::ChebInfo, ST::SDFTMethod;
-                      cal_way=:cal_mat, kws...) 
+function estimate_var(basis::PlaneWaveBasis{T},
+                      Cheb::ChebInfo,
+                      ST::SDFTMethod;
+                      cal_way=:cal_mat,
+                      batch_size=256, kws...) where {T}
     occ = filled_occupation(basis.model)
-    hambl = [iham.blocks[1] for iham in sdft_hamiltonian(basis, ST; kws...)]
-    ψ = compute_wavefun(hambl, cal_way, Cheb, ST)
-    
-    return occ^2 .* _estimate_var(basis, ψ, ST), ψ, hambl
+    hambls = all_level_ham_blocks(basis, ST; kws...)
+    ψ = compute_stoc_wavefun(hambls, cal_way, Cheb, ST; batch_size)
+
+    nl = count_nl(ST)
+    function allocate_local_storage()
+        (; vars=fill(zero(T), 2, nl))
+    end
+
+    nk = length(basis.kpoints)
+    storages = parallel_loop_over_range(1:nk; allocate_local_storage) do ik, storage
+        estimate_var_single_k!(storage, basis, ψ, ik, ST)
+    end
+
+    vars = occ^2 .* sum(storage -> storage.vars, storages)
+    DFTK.mpi_sum!(vars, basis.comm_kpts)
+
+    return vars, ψ, hambls
 end
 
-_estimate_var(basis::PlaneWaveBasis, ψ, ST::MC) = variance(ψ[1])
-
-function _estimate_var(basis::PlaneWaveBasis{T}, ψ, 
-					   ST::PDegreeML{N}) where {T,N}
-	var = zeros(T,N)
-	var[1] = variance(ψ[1])
-    var_mc = copy(var)
-	for l = 2:N
-        var_mc[l] = variance(ψ[2l-1])
-		var[l] = variance(ψ[2l-2],ψ[2l-1])
-	end
-	var, var_mc
+function estimate_var_single_k!(storage, basis::PlaneWaveBasis, ψ, ik, ST::MC)
+    storage.vars[1, 1] += basis.kweights[ik]^2 * variance(ψ[ik][1])
+    return nothing
 end
 
-function _estimate_var(basis::PlaneWaveBasis{T}, ψ, 
-					   ST::ECutoffML{N}) where {T,N}
+function estimate_var_single_k!(storage, basis::PlaneWaveBasis,
+                                ψ, ik, ST::PDegreeML{N}) where {N}
+    weight = basis.kweights[ik]^2
+    @views storage.vars[:, 1] .+= (weight * variance(ψ[ik][1]))
+    for l = 2:N
+        storage.vars[1, l] += weight * variance(ψ[ik][2l-2], ψ[ik][2l-1])
+        storage.vars[2, l] += weight * variance(ψ[ik][2l-1])
+    end
+end
+
+function estimate_var_single_k!(storage, basis::PlaneWaveBasis,
+                                ψ, ik, ST::ECutoffML{N}) where {N}
     basisl = ST.basisl
-	var = zeros(T,N)
-	var[1] = variance(ψ[1])
-    var_mc = copy(var)
-	for l = 2:N
-        var_mc[l] = variance(ψ[2l-1])
-        ψ1 = transfer_blochwave_kpt(ψ[2l-2], basisl[l-1], 
-									basisl[l-1].kpoints[1],
-							   		basisl[l], basisl[l].kpoints[1])
-        var[l] = variance(ψ1, ψ[2l-1])
-	end
-	var, var_mc
+    weight = basis.kweights[ik]^2
+    @views storage.vars[:, 1] .+= (weight * variance(ψ[ik][1]))
+    for l = 2:N
+        ψ_coarse = transfer_blochwave_kpt(ψ[ik][2l-2], basisl[l-1],
+                                          basisl[l-1].kpoints[ik],
+                                          basisl[l], basisl[l].kpoints[ik])
+        storage.vars[1, l] += weight * variance(ψ_coarse, ψ[ik][2l-1])
+        storage.vars[2, l] += weight * variance(ψ[ik][2l-1])
+    end
 end
 
-# Compute the variance of X[:,i] = (Aχ_i)*(Aχ_i)' and
-# use the Welford algorithm (https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance)
 function variance(X::Matrix{T}) where {T}
     n, N = size(X)
 
-    mean = zeros(T, n, n)
-    old_mean = copy(mean)
-    Xi = copy(mean)
-    var = copy(mean)
-    for i = 1:N
-        @views xi = X[:, i]
-        outervec!(Xi, xi)
+    G = X' * X
 
-        copy!(old_mean, mean)
-        mean_update(mean, Xi, inv(i))
-        var_update(var, Xi, mean, old_mean)
+    norms2 = [real(G[i, i]) for i in 1:N]
+
+    sum_val = zero(real(T))
+    for a in 1:N
+        for b in 1:N
+            sum_val += norms2[a]^2 + norms2[b]^2 - 2 * abs2(G[a, b])
+        end
     end
 
-    real(sum(var)) / N
+    return sum_val / (2 * N^2)
 end
 
-# Compute the variance of X[:,i]-Y[:,i] = (Aχ_i)*(Aχ_i)' - (Bχ_i)*(Bχ_i)' and
-# use the Welford algorithm (https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance)
 function variance(X::Matrix{T}, Y::Matrix{T}) where {T}
-	@assert size(X) == size(Y)
+    @assert size(X) == size(Y)
     n, N = size(X)
 
-    mean = zeros(T, n, n)
-    old_mean = copy(mean)
-    XYi = copy(mean)
-    var = copy(mean)
-    for i = 1:N
-        @views xi, yi = X[:, i], Y[:, i]
-        outervecmxy!(XYi, xi, yi)
+    Gxx = X' * X
+    Gyy = Y' * Y
+    Gxy = X' * Y
 
-        copy!(old_mean, mean)
-        mean_update(mean, XYi, inv(i))
-        var_update(var, XYi, mean, old_mean)
+    term1 = zero(real(T))
+    for i in 1:N
+        term1 += real(Gxx[i, i])^2 + real(Gyy[i, i])^2 - 2 * abs2(Gxy[i, i])
     end
+    E_norm_sq = term1 / N
 
-    real(sum(var)) / N
-end
-
-# result = x * x'
-function outervec!(result::AbstractMatrix, x::AbstractVector)
-    is, js = axes(result)
-    if (is != js) || (is != axes(x, 1))
-        error("mismatched array sizes")
-    end
-    for j in js
-        for i in is
-            @inbounds ci, cj = x[i], x[j]
-            @inbounds result[i, j] = ci * conj(cj)
+    term2 = zero(real(T))
+    @inbounds for b in 1:N
+        for a in 1:N
+            term2 += abs2(Gxx[a, b]) + abs2(Gyy[a, b]) - 2 * abs2(Gxy[a, b])
         end
     end
-    result
-end
+    norm_E_sq = term2 / (N^2)
 
-# result = x * x' - y * y'
-function outervecmxy!(result::AbstractMatrix, x::AbstractVector, y::AbstractVector)
-    is, js = axes(result)
-    if (is != js) || (is != axes(x, 1)) || (axes(x,1) != axes(y,1))
-        error("mismatched array sizes")
-    end
-    for j in js
-        for i in is
-            @inbounds ci, ri, cj, rj = x[i], y[i], x[j], y[j]
-            @inbounds result[i, j] = ci * conj(cj) - ri * conj(rj)
-        end
-    end
-    result
-end
-
-# mean += (mean - X) .* nc
-function mean_update(mean::Matrix, X::Matrix, nc::Real)
-    is, js = axes(mean)
-    for j in js
-        for i in is
-            @inbounds x, m = X[i, j], mean[i, j]
-            @inbounds mean[i, j] = muladd(x - m, nc, m)
-        end
-    end
-end
-
-# var += (X-mean) .* conj.(X-old_mean)
-function var_update(var::Matrix, X::Matrix, mean::Matrix, old_mean::Matrix)
-    is, js = axes(var)
-    for j in js
-        for i in is
-            @inbounds x, m1, m2 = X[i, j], mean[i, j], old_mean[i, j]
-            @inbounds var[i, j] = muladd(x - m1, conj(x - m2), var[i, j])
-        end
-    end
+    return E_norm_sq - norm_E_sq
 end

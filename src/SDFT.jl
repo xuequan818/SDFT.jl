@@ -2,7 +2,8 @@ module SDFT
 
 using Distributions
 using DFTK
-import DFTK: filled_occupation
+import DFTK: parallel_loop_over_range
+import DFTK: filled_occupation, zeros_like
 import DFTK: transfer_density, transfer_mapping
 using LinearAlgebra
 using Arpack, KrylovKit
@@ -11,6 +12,7 @@ using IterTools
 using Peaks
 using Accessors
 using Printf
+using StaticArrays
 
 include("basis.jl")
 
@@ -28,6 +30,8 @@ export MLMC
 export PDegreeML, PDegreeCT
 export ECutoffML, ECutoffCT
 include("sdft_method.jl")
+
+export compute_stoc_wavefun
 include("wavefun.jl")
 
 export estimate_var
