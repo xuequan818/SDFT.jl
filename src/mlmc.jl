@@ -150,59 +150,46 @@ function eval_conv_const(basis::PlaneWaveBasis, ::OptimalEC;
     eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, nbands; ψguess=nothing) 
     occupation, εF = DFTK.compute_occupation(ham.basis, eigres.λ)
     smearf = FermiDirac(εF, inv(basis.model.temperature))
-    c1, c2 = eval_ec_const(Ecuts, basis_ref, eigres.λ[1], eigres.X[1], x->sqrt(evalf(x, smearf)), ρref)
+    c1, c2 = eval_ec_const(Ecuts, basis_ref, eigres.λ, eigres.X, x->sqrt(evalf(x, smearf)), ρref)
 
     return 4 * c1 * basis.model.n_electrons, c2
 end
 
 function eval_ec_const(Ecuts, basis, eigref, ψref, smearf, ρ)
-    T = eltype(ψref)
-    dof = size(ψref, 1)
-    fHref = zeros(T, dof, dof)
-    n_bands = length(eigref)
-    @views for i in 1:n_bands
-        outersum!(fHref, ψref[:, i], smearf(eigref[i]))
-    end
-
+    nk = length(basis.kpoints)
+    T = eltype(ψref[1])
+    f_ref = [smearf.(λ) for λ in eigref]
+    norm_ref_sq = norm.(f_ref) .^ 2
     err = fill(0.0, length(Ecuts))
-    FHl = zero(fHref)
+    n_bands = length(eigref[1])
     for (l, ecl) in enumerate(Ecuts)
         basisl = PlaneWaveBasis(basis, ecl)
-        idcsk_in, idcsk_out = transfer_mapping(basis, basis.kpoints[1], 
-                                               basisl, basisl.kpoints[1])
-        ψl = [ψref[idcsk_in, :]]
         ρl = transfer_density(ρ, basis, basisl)
         haml = Hamiltonian(basisl; ρ=ρl)
+        eigresl = diagonalize_all_kblocks(lobpcg_hyper, haml, n_bands; ψguess=nothing)
+        for ik = 1:nk
+            ψl = eigresl.X[ik]
+            f_l = smearf.(eigresl.λ[ik])
+            norm_l_sq = norm(f_l)^2
 
-        eigresl = diagonalize_all_kblocks(lobpcg_hyper, haml, n_bands; ψguess=ψl)
-        dofl = size(eigresl.X[1], 1)
-        fHl = zeros(T, dofl, dofl)
-        @views for i in 1:n_bands
-            outersum!(fHl, eigresl.X[1][:, i], smearf(eigresl.λ[1][i]))
+            ψref_cut = transfer_blochwave_kpt(ψref[ik], basis, basis.kpoints[ik],
+                                              basisl, basisl.kpoints[ik])
+            G = ψref_cut' * ψl
+
+            cross_term = 0.0
+            for j in 1:n_bands, i in 1:n_bands
+                cross_term += f_ref[ik][i] * f_l[j] * real(abs2(G[i, j]))
+            end
+
+            current_err_sq = max(0.0, norm_ref_sq[ik] + norm_l_sq - 2 * cross_term)
+
+            err[l] += basis.kweights[ik] * sqrt(current_err_sq)
         end
-        fill!(FHl, 0)
-        FHl[idcsk_in, idcsk_in] = fHl
-        err[l] = norm(FHl - fHref)
     end
-
     X = [ones(length(Ecuts)) sqrt.(Ecuts)]
     a, b = X \ log.(err)
 
     return exp(a), -b
-end
-
-function outersum!(result::AbstractMatrix, x::AbstractVector, a::Number)
-    is, js = axes(result)
-    if (is != js) || (is != axes(x, 1))
-        error("mismatched array sizes")
-    end
-    for j in js
-        for i in is
-            @inbounds ci, cj = x[i], x[j]
-            @inbounds result[i, j] = muladd(ci * conj(cj), a, result[i, j])
-        end
-    end
-    result
 end
 
 function algebraic_hierarchy(ps, Q0, QL, Qc, EC::OptimalEC{N}) where {N}
