@@ -66,14 +66,14 @@ end
 function variance(X::Matrix{T}) where {T}
     n, N = size(X)
 
-    G = X' * X
+    S = X' * X
 
-    norms2 = [real(G[i, i]) for i in 1:N]
+    norms2 = [real(S[i, i]) for i in 1:N]
 
     sum_val = zero(real(T))
     for a in 1:N
         for b in 1:N
-            sum_val += norms2[a]^2 + norms2[b]^2 - 2 * abs2(G[a, b])
+            sum_val += norms2[a]^2 + norms2[b]^2 - 2 * abs2(S[a, b])
         end
     end
 
@@ -84,20 +84,20 @@ function variance(X::Matrix{T}, Y::Matrix{T}) where {T}
     @assert size(X) == size(Y)
     n, N = size(X)
 
-    Gxx = X' * X
-    Gyy = Y' * Y
-    Gxy = X' * Y
+    Sxx = X' * X
+    Syy = Y' * Y
+    Sxy = X' * Y
 
     term1 = zero(real(T))
     for i in 1:N
-        term1 += real(Gxx[i, i])^2 + real(Gyy[i, i])^2 - 2 * abs2(Gxy[i, i])
+        term1 += real(Sxx[i, i])^2 + real(Syy[i, i])^2 - 2 * abs2(Sxy[i, i])
     end
     E_norm_sq = term1 / N
 
     term2 = zero(real(T))
     @inbounds for b in 1:N
         for a in 1:N
-            term2 += abs2(Gxx[a, b]) + abs2(Gyy[a, b]) - 2 * abs2(Gxy[a, b])
+            term2 += abs2(Sxx[a, b]) + abs2(Syy[a, b]) - 2 * abs2(Sxy[a, b])
         end
     end
     norm_E_sq = term2 / (N^2)
