@@ -169,7 +169,7 @@ function eval_ec_const(Ecuts, basis, eigref, ψref, smearf, ρ)
         eigresl = try
             diagonalize_all_kblocks(lobpcg_hyper, haml, n_bands; ψguess=nothing)
         catch e
-            diagonalize(basisl)
+            diagonalize(basisl; ρ=ρl)
         end
         n_bandsl = length(eigresl[1])
         for ik = 1:nk
