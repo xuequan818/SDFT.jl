@@ -4,6 +4,9 @@ using LinearAlgebra
 using Dates
 using JLD2
 
+include("ksdft.jl")
+include("testcase.jl")
+
 function sdft_var_theory(basis::PlaneWaveBasis, εF::Real;
                          scfres_ref=nothing, Ecut_ref=30, kws...)
     smearf = FermiDirac(εF, inv(basis.model.temperature))

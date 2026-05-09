@@ -31,7 +31,16 @@ function compute_stoc_density(basis::PlaneWaveBasis{T},
                               isoptML=!isnothing(ST.d),
                               kws...) where {T,N}
     if isoptML
+        t0 = time()
+
         ST, var, ψin, hambls = optimal_mlmc(basis, Cheb, OptimalPD(Cheb.order, ST.nsl, ST.d); kws...)
+        elapsed = round(time() - t0; digits=1)
+
+        println("  Building Optimal PDML in $(elapsed)s.\n")
+        println("  Level Information:\n")
+        println("  Polynomial degrees: $(ST.Ml)")
+        println("  Orbital numbers:    $(ST.nsl)\n")
+        flush(stdout)
     else
         hambls = all_level_ham_blocks(basis, ST; kws...)
         ψin = nothing
@@ -49,7 +58,17 @@ function compute_stoc_density(basis::PlaneWaveBasis{T},
                               isoptML=!isnothing(ST.d), 
                               kws...) where {T,N}
     if isoptML
+        t0 = time()
+
         ST, var, ψin, hambls = optimal_mlmc(basis, Cheb, OptimalEC(basis.Ecut, ST.nsl, ST.d); kws...)
+        elapsed = round(time() - t0; digits=1)
+
+        println("  Building Optimal ECML in $(elapsed)s.\n")
+        println("  Level Information:\n")
+        Ecl = tuple(round.(take_cut.(ST.basisl),digits=2)...)
+        println("  Energy cutoffs:  $(Ecl)\n")
+        println("  Orbital numbers: $(ST.nsl)\n")
+        flush(stdout)
     else
         hambls = all_level_ham_blocks(basis, ST; kws...)
         ψin = nothing

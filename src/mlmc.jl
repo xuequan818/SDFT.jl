@@ -144,9 +144,9 @@ function eval_conv_const(basis::PlaneWaveBasis, ::OptimalEC;
     end
     
     basis_ref = PlaneWaveBasis(basis, Ecut_ref)
-    ρref = transfer_density(ρ, basis, basis_ref)
+    ρref = DFTK.transfer_density(ρ, basis, basis_ref)
     ham = Hamiltonian(basis_ref; ρ=ρref)
-    nbands = AdaptiveBands(basis.model).n_bands_compute
+    nbands = max(div(length(basis.kpoints[1].mapping), 10), AdaptiveBands(basis.model).n_bands_compute)
     eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, nbands; ψguess=nothing) 
     occupation, εF = DFTK.compute_occupation(ham.basis, eigres.λ)
     smearf = FermiDirac(εF, inv(basis.model.temperature))
@@ -166,7 +166,12 @@ function eval_ec_const(Ecuts, basis, eigref, ψref, smearf, ρ)
         basisl = PlaneWaveBasis(basis, ecl)
         ρl = transfer_density(ρ, basis, basisl)
         haml = Hamiltonian(basisl; ρ=ρl)
-        eigresl = diagonalize_all_kblocks(lobpcg_hyper, haml, n_bands; ψguess=nothing)
+        eigresl = try
+            diagonalize_all_kblocks(lobpcg_hyper, haml, n_bands; ψguess=nothing)
+        catch e
+            diagonalize(basisl)
+        end
+        n_bandsl = length(eigresl[1])
         for ik = 1:nk
             ψl = eigresl.X[ik]
             f_l = smearf.(eigresl.λ[ik])
@@ -174,11 +179,11 @@ function eval_ec_const(Ecuts, basis, eigref, ψref, smearf, ρ)
 
             ψref_cut = transfer_blochwave_kpt(ψref[ik], basis, basis.kpoints[ik],
                                               basisl, basisl.kpoints[ik])
-            G = ψref_cut' * ψl
+            S = ψref_cut' * ψl
 
             cross_term = 0.0
-            for j in 1:n_bands, i in 1:n_bands
-                cross_term += f_ref[ik][i] * f_l[j] * real(abs2(G[i, j]))
+            for j in 1:n_bandsl, i in 1:n_bands
+                cross_term += f_ref[ik][i] * f_l[j] * real(abs2(S[i, j]))
             end
 
             current_err_sq = max(0.0, norm_ref_sq[ik] + norm_l_sq - 2 * cross_term)

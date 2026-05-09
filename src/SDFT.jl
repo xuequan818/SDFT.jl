@@ -46,6 +46,6 @@ include("mlmc.jl")
 export compute_stoc_density
 include("density.jl")
 
-include("testcase.jl")
+include("diag.jl")
 
 end # module SDFT

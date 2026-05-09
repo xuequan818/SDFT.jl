@@ -4,6 +4,8 @@ using DFTK
 using LinearAlgebra
 using Dates
 using JLD2
+include("ksdft.jl")
+include("testcase.jl")
 
 function run_mlmcpd_var(L; case_setup="graphene", 
                         Ns=500, Q0=100, Qc=0, N1=1, N2=1,
