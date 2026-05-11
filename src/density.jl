@@ -5,7 +5,12 @@ function compute_stoc_density(basis::PlaneWaveBasis,
                               tol_cheb=1e-6, kws...)
     if isnothing(Cheb) 
         smearf = FermiDirac(εF, inv(basis.model.temperature))
-        Cheb = chebyshev_info(basis, smearf, M, cal_way; tol_cheb, kws...)
+        if length(basis.kpoints) == 1
+            ham = Hamiltonian(basis; kws...)
+            Cheb = chebyshev_info(ham.blocks[1], smearf, M, cal_way; tol_cheb, kws...)
+        else
+            Cheb = chebyshev_info(basis, smearf, M, cal_way; tol_cheb, kws...)
+        end
     end
 
     compute_stoc_density(basis, Cheb, ST; cal_way, kws...)
@@ -33,10 +38,10 @@ function compute_stoc_density(basis::PlaneWaveBasis{T},
     if isoptML
         t0 = time()
 
-        ST, var, ψin, hambls = optimal_mlmc(basis, Cheb, OptimalPD(Cheb.order, ST.nsl, ST.d); kws...)
+        ST, p_opt, var, ψin, hambls = optimal_mlmc(basis, Cheb, OptimalPD(Cheb.order, ST.nsl, ST.d); kws...)
         elapsed = round(time() - t0; digits=1)
 
-        println("  Building Optimal PDML in $(elapsed)s.\n")
+        println("  Building Optimal PDML with q=$(p_opt) in $(elapsed)s.\n")
         println("  Level Information:\n")
         println("  Polynomial degrees: $(ST.Ml)")
         println("  Orbital numbers:    $(ST.nsl)\n")
@@ -60,10 +65,10 @@ function compute_stoc_density(basis::PlaneWaveBasis{T},
     if isoptML
         t0 = time()
 
-        ST, var, ψin, hambls = optimal_mlmc(basis, Cheb, OptimalEC(basis.Ecut, ST.nsl, ST.d); kws...)
+        ST, p_opt, var, ψin, hambls = optimal_mlmc(basis, Cheb, OptimalEC(basis.Ecut, ST.nsl, ST.d); kws...)
         elapsed = round(time() - t0; digits=1)
 
-        println("  Building Optimal ECML in $(elapsed)s.\n")
+        println("  Building Optimal ECML with p=$(p_opt) in $(elapsed)s.\n")
         println("  Level Information:\n")
         Ecl = tuple(round.(take_cut.(ST.basisl),digits=2)...)
         println("  Energy cutoffs:  $(Ecl)\n")

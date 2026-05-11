@@ -123,5 +123,4 @@ function _run_mlmcec_cost(L; ϵ=0.5, cal_way=:cal_mat, kws...)
     return ec_time, var, Ql, basis, Cheb, ρ
 end
 
-take_dof(basis) = length(basis.kpoints[1].mapping)
 take_ne(basis) = basis.model.n_electrons

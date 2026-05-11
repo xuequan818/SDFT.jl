@@ -71,7 +71,7 @@ function get_total_cols_list(H, EC::ECutoffML{N}) where {N}
     cols = fill(coltmp[1], 2N - 1)
     dofs = fill(doftmp[1], 2N - 1)
     for l = 2:N
-        cols[2l-2] = coltmp[l-1]
+        cols[2l-2] = coltmp[l]
         cols[2l-1] = coltmp[l]
         dofs[2l-2] = doftmp[l-1]
         dofs[2l-1] = doftmp[l]
@@ -100,8 +100,8 @@ function compute_wavefun_batch!(ψ, Hs, ham, Cheb, l, rng, PD::PDegreeML)
             			                    E1, E2, true)
         copy!(ψ[2], ψ[1])
         _compute_cheb_recur!(ψ[2], H, U0, U1, U2,
-							 coef[Ml[l-1]+2:Ml[l]+1], E1,
-							 E2, Val(size(U0,2)), false)   
+							 coef[Ml[l-1]+2:Ml[l]+1], 
+							 E1, E2, false)   
     end                                  
 end
 
@@ -139,34 +139,26 @@ function compute_cheb_recur!(TH, H, U0, coef, E1, E2, Ureturn=false)
 	end
 
     coef_view = view(coef, 3:lastindex(coef))
-    _compute_cheb_recur!(TH, H, U0, U1, U2, coef_view, E1, E2, Val(N), Ureturn)
+    _compute_cheb_recur!(TH, H, U0, U1, U2, coef_view, E1, E2, Ureturn)
 end
     					
 function _compute_cheb_recur!(TH, H, U0, U1, U2,
-    					     coef, E1, E2, ::Val{N}, 
-							 Ureturn::Bool) where {N}
-    @assert size(coef, 2) == 1
-    SE2 = 2 * inv(E2)
-
-    for ic in coef
-        # compute U2 = 2 * H * U1 - U0
-        S2_mul!(U2, H, U1, E1, SE2)
-        axpy!(-1.0, U0, U2)
-        axpy!(ic, U2, TH)
-
-        U0, U1, U2 = U1, U2, U0
-    end
-
-    if Ureturn
-        return TH, U0, U1, U2
-    else
-        return TH
-    end
-end
-
-function _compute_cheb_recur!(TH, H, U0, U1, U2,
-    					     coef, E1, E2, ::Val{0}, 
+    					     coef, E1, E2, 
 							 Ureturn::Bool) 
+    if !isempty(U0)                         
+        @assert size(coef, 2) == 1
+        SE2 = 2 * inv(E2)
+
+        for ic in coef
+            # compute U2 = 2 * H * U1 - U0
+            S2_mul!(U2, H, U1, E1, SE2)
+            axpy!(-1.0, U0, U2)
+            axpy!(ic, U2, TH)
+
+            U0, U1, U2 = U1, U2, U0
+        end
+    end
+
     if Ureturn
         return TH, U0, U1, U2
     else

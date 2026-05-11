@@ -8,7 +8,7 @@ using AtomsBuilder
 
 ## 3D systems
 
-function carbon_setup(repeats; Ecut=7.0, kgrid=[1, 1, 1])
+function carbon_setup(repeats; Ecut=7.0, kgrid=[1, 1, 1], temperature=1e-3)
     ## Use AtomsBuilder to setup carbon cubic unit cell (8 Si atoms)
     ## with provided lattice constant, see [AtomsBase integration](@ref) for details.
     unit_cell = bulk(:C; cubic=true)
@@ -16,7 +16,7 @@ function carbon_setup(repeats; Ecut=7.0, kgrid=[1, 1, 1])
 
     pseudopotentials = PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth")
     model = model_DFT(supercell; pseudopotentials, functionals=PBE(),
-                      temperature=1e-3, symmetries=false)
+                      temperature, symmetries=false)
     PlaneWaveBasis(model; Ecut, kgrid)
 end;
 

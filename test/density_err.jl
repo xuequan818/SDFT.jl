@@ -1,5 +1,5 @@
 using SDFT
-include("testcase.jl")
+using DFTK
 
 # 1D case
 a = 20

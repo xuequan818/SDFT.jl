@@ -11,10 +11,10 @@ OptimalPD(ML, nsl; d=DEFAULT_DISTR) = OptimalPD(ML, nsl, d)
 
 function optimal_mlmc(basis, FD::Union{Real,ChebInfo}, 
                       PD::OptimalPD; tot_tol=1e-1, kws...)
-    Ml, vars, ψ, hambl = _optimal_mlmc(basis, FD, PD; kws...)
+    Ml, p_opt, vars, ψ, hambl = _optimal_mlmc(basis, FD, PD; kws...)
     opt_nsl = optimal_ns(vars[1,:], Ml, tot_tol)
     
-    PDegreeML(Ml, opt_nsl, PD.d), vars, ψ, hambl
+    PDegreeML(Ml, opt_nsl, PD.d), p_opt, vars, ψ, hambl
 end
 
 function _optimal_mlmc(basis, FD::Union{Real,ChebInfo}, 
@@ -22,10 +22,11 @@ function _optimal_mlmc(basis, FD::Union{Real,ChebInfo},
                        pmax=10, ph=0.1, 
                        Q0=100, Qc=0, 
                        ρ=guess_density(basis), kws...)           
-    Ml = Int.(optimal_hierarchy(pmax, ph, Q0, PD.ML, Qc, basis, PD; ρ, kws...))
+    Ml, p_opt = optimal_hierarchy(pmax, ph, Q0, PD.ML, Qc, basis, PD; ρ, kws...)
+    Ml = Int.(Ml)
     vars, ψ, hambl = estimate_var(basis, FD, PDegreeML(Ml, PD.nsl, PD.d); ρ, kws...)
     
-    (; Ml, vars, ψ, hambl)
+    (; Ml, p_opt, vars, ψ, hambl)
 end
 
 # Var[ϕ̂_χ^ℓ - ϕ] ≤ c1exp(-2*c2*M_ℓ)
@@ -101,12 +102,12 @@ OptimalEC(EcL, nsl; d=DEFAULT_DISTR) = OptimalEC(EcL, nsl, d)
 function optimal_mlmc(basis, FD::Union{Real,ChebInfo},
                       EC::OptimalEC{N}; tot_tol=1e-1, 
                       kws...) where {N}
-    Ecl, vars, ψ, hambl = _optimal_mlmc(basis, FD, EC; kws...)
+    Ecl, p_opt, vars, ψ, hambl = _optimal_mlmc(basis, FD, EC; kws...)
     dim = basis.model.n_dim
     fc(l) = isone(l) ? Ecl[l]^(dim/2) : (Ecl[l]^(dim/2) + Ecl[l-1]^(dim/2))
     opt_nsl = optimal_ns(vars[1,:], fc.(1:N), tot_tol)
 
-    ECutoffML(basis, Ecl, opt_nsl, EC.d), vars, ψ, hambl
+    ECutoffML(basis, Ecl, opt_nsl, EC.d), p_opt, vars, ψ, hambl
 end
 
 function _optimal_mlmc(basis, FD::Union{Real,ChebInfo},
@@ -115,10 +116,10 @@ function _optimal_mlmc(basis, FD::Union{Real,ChebInfo},
                        Q0=6, Qc=0.1,
                        ρ=guess_density(basis), 
                        kws...) where {N}
-    Ecl = optimal_hierarchy(pmax, ph, Q0, EC.EcL, Qc, basis, EC; ρ, kws...)
+    Ecl, p_opt = optimal_hierarchy(pmax, ph, Q0, EC.EcL, Qc, basis, EC; ρ, kws...)
     vars, ψ, hambl = estimate_var(basis, FD, ECutoffML(basis, Ecl, EC.nsl, EC.d); ρ, kws...)
     
-    Ecl, vars, ψ, hambl
+    (; Ecl, p_opt, vars, ψ, hambl)
 end
 
 # Var[ϕ̂_χ^ℓ - ϕ] ≤ c1exp(-2*c2*√E_{c,ℓ})
@@ -137,18 +138,34 @@ function mlmc_cost(ecl::Function, basis::PlaneWaveBasis,
 end
 
 function eval_conv_const(basis::PlaneWaveBasis, ::OptimalEC;
-                         ρ=nothing, Ecut_ref=30, 
+                         ρ=nothing, εF=nothing, Ecut_ref=30, 
                          Ecuts=10:2:20, kws...)
     if isnothing(ρ) 
         ρ = guess_density(basis)
     end
-    
+
+    basis_coarse = PlaneWaveBasis(basis, 5)
+    ρ_coarse = guess_density(basis_coarse)
+    ham_coarse = Hamiltonian(basis_coarse; ρ=ρ_coarse)
+    nbands = if basis.model.temperature ≥ 0.01
+        determine_n_bands_ks(basis_coarse, 0.0; ρ=ρ_coarse)
+    else
+        AdaptiveBands(basis.model).n_bands_compute
+    end
+    eigres_coarse = diagonalize_all_kblocks(diag_full, ham_coarse, nbands; ψguess=nothing)
+
     basis_ref = PlaneWaveBasis(basis, Ecut_ref)
+    ψguess_ref = transfer_blochwave(eigres_coarse.X, basis_coarse, basis_ref)
     ρref = DFTK.transfer_density(ρ, basis, basis_ref)
     ham = Hamiltonian(basis_ref; ρ=ρref)
-    nbands = max(div(length(basis.kpoints[1].mapping), 10), AdaptiveBands(basis.model).n_bands_compute)
-    eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, nbands; ψguess=nothing) 
-    occupation, εF = DFTK.compute_occupation(ham.basis, eigres.λ)
+    eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, nbands; ψguess=ψguess_ref)
+
+    if isnothing(εF)
+        occupation, εF = DFTK.compute_occupation(ham.basis, eigres.λ)
+    else
+        occupation = DFTK.compute_occupation(ham.basis, eigres.λ, εF).occupation
+    end
+
     smearf = FermiDirac(εF, inv(basis.model.temperature))
     c1, c2 = eval_ec_const(Ecuts, basis_ref, eigres.λ, eigres.X, x->sqrt(evalf(x, smearf)), ρref)
 
@@ -206,7 +223,7 @@ end
 function optimal_hierarchy(pmax, ph, Q0, QL, Qc,
                            basis::PlaneWaveBasis{T},
                            MLMC::OptimalMLMC{N}; 
-                           opt_ratio=nothing, 
+                           opt_ratio=0.01, 
                            pcustom::Union{Nothing,Real}=nothing, 
                            kws...) where {T,N}
     if !isnothing(pcustom)
@@ -251,7 +268,7 @@ function optimal_hierarchy(pmax, ph, Q0, QL, Qc,
         opt = (lmax:opt)[ind]
     end
 
-    Ql[pind[opt]].(0:N-1)
+    return Ql[pind[opt]].(0:N-1), ps[pind[opt]]
 end
 
 function estimate_digits(x::Real)

@@ -1,3 +1,5 @@
+export take_dof, take_cut
+
 # Creates a new basis identical to `basis`, but with a new Ecut.
 function DFTK.PlaneWaveBasis(basis::PlaneWaveBasis, Ecut::Number)
     model = basis.model
@@ -17,3 +19,7 @@ function DFTK.PlaneWaveBasis(basis::PlaneWaveBasis, Ecut::Number)
                    use_symmetries_for_kpoint_reduction, 
                    comm_kpts, architecture)
 end
+
+take_dof(basis, k) = length(basis.kpoints[k].mapping)
+take_dof(basis) = take_dof(basis, 1)
+take_cut(basis) = basis.Ecut

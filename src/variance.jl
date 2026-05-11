@@ -2,9 +2,13 @@ function estimate_var(basis::PlaneWaveBasis,
                       εF::Real, ST::SDFTMethod;
                       cal_way=:cal_mat, M=Int(5e4),
                       tol_cheb=1e-6, kws...)
-    ham = Hamiltonian(basis; kws...).blocks[1]
     smearf = FermiDirac(εF, inv(basis.model.temperature))
-    Cheb = chebyshev_info(ham, smearf, M, cal_way; tol_cheb, kws...)
+    if length(basis.kpoints) == 1
+        ham = Hamiltonian(basis; kws...)
+        Cheb = chebyshev_info(ham.blocks[1], smearf, M, cal_way; tol_cheb, kws...)
+    else
+        Cheb = chebyshev_info(basis, smearf, M, cal_way; tol_cheb, kws...)
+    end
 
     estimate_var(basis, Cheb, ST; cal_way, kws...)
 end

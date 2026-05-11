@@ -8,6 +8,7 @@
 /old-ver
 /not_needed
 /test_cluster
+/test_slurm
 *.DS_Store
 /data
 /images

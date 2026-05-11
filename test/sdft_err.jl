@@ -4,6 +4,8 @@ using LinearAlgebra
 using Dates
 using JLD2
 
+include("testcase.jl")
+
 function run_err_rho(Ns; case_setup="graphene",
                      Nmax=3, Ecut=15, 
                      temperature=1e-3, 

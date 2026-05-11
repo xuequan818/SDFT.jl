@@ -4,7 +4,6 @@ using LinearAlgebra
 using Dates
 using JLD2
 
-include("ksdft.jl")
 include("testcase.jl")
 
 function sdft_var_theory(basis::PlaneWaveBasis, εF::Real;
@@ -44,11 +43,25 @@ function sdft_var_eigs(smearf::FermiDirac, λs::AbstractVector,
     dof = size(ψs, 1)
     fH = zeros(T, dof, dof)
     @views for (i, iλ) in enumerate(λs)
-        SDFT.outersum!(fH, ψs[:, i], f(iλ))
+        outersum!(fH, ψs[:, i], f(iλ))
     end
     D = 2 * real(diag(fH))
 
     return sum(D)^2 - sum(D .^ 2)
+end
+
+function outersum!(result::AbstractMatrix, x::AbstractVector, a::Number)
+    is, js = axes(result)
+    if (is != js) || (is != axes(x, 1))
+        error("mismatched array sizes")
+    end
+    for j in js
+        for i in is
+            @inbounds ci, cj = x[i], x[j]
+            @inbounds result[i, j] = muladd(ci * conj(cj), a, result[i, j])
+        end
+    end
+    result
 end
 
 function run_var(Nmax::Int; case_setup="graphene", 

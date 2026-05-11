@@ -4,7 +4,6 @@ using DFTK
 using LinearAlgebra
 using Dates
 using JLD2
-include("ksdft.jl")
 include("testcase.jl")
 
 function run_mlmcpd_var(L; case_setup="graphene", 
@@ -29,7 +28,7 @@ function run_mlmcpd_var(L; case_setup="graphene",
     Ns = ceil.(Int, Ns ./ [2^i for i = 0:L])
     f30(x) = x < 30 ? 30 : x
     Ns = f30.(Ns)
-    @time Ql, var, ψ, hambl0 = _optimal_mlmc(basis, Cheb, OptimalPD(Cheb.order, Ns); ρ, cal_way, Q0, Qc, kws...);
+    @time Ql, opt_p, var, ψ, hambl0 = _optimal_mlmc(basis, Cheb, OptimalPD(Cheb.order, Ns); ρ, cal_way, Q0, Qc, kws...);
 
     function save_output(outdir)
         date_str = Dates.format(now(), "yyyymmdd_HH_MM")
@@ -71,7 +70,7 @@ function run_mlmcec_var(L; case_setup="graphene",
     Ns = ceil.(Int, Ns ./ [2^i for i = 0:L])
     f30(x) = x < 30 ? 30 : x
     Ns = f30.(Ns)
-    @time Ql, var, ψ, hambl0 = _optimal_mlmc(basis, Cheb, OptimalEC(Ecut, Ns); ρ, cal_way, Q0, Qc, kws...);
+    @time Ql, p_opt, var, ψ, hambl0 = _optimal_mlmc(basis, Cheb, OptimalEC(Ecut, Ns); ρ, cal_way, Q0, Qc, kws...);
 
     function save_output(outdir)
         date_str = Dates.format(now(), "yyyymmdd_HH_MM")
