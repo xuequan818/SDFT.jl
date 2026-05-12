@@ -13,7 +13,7 @@ terms = [Kinetic(), AtomicLocal()]
 temperature = 1.0
 
 model = Model(lattice, atoms, positions; n_electrons, terms, temperature, spin_polarization=:spinless)
-basis = PlaneWaveBasis(model; Ecut=1000, kgrid=(1, 1, 1));
+basis = PlaneWaveBasis(model; Ecut=1000, kgrid=(6, 1, 1));
 
 εF = 0.0
 nbands = determine_n_bands_ks(basis, εF)
@@ -22,5 +22,4 @@ nbands = determine_n_bands_ks(basis, εF)
 
 @time ρct = compute_stoc_density(basis, εF, CT(); M=10000, tol_cheb=1e-8);
 
-@show norm(ρct-ρks)
-
+@show norm(ρct-ρpd)

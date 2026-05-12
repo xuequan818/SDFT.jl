@@ -54,37 +54,6 @@ function eval_conv_const(basis::PlaneWaveBasis, ::OptimalPD; kws...)
     return c1, c2
 end
 
-#=
-function eval_conv_const(basis::PlaneWaveBasis, ::OptimalPD; 
-                         Mref=Int(2e4), Ms=1000 .* collect(1:10),
-                         εF=0.0, kws...)
-    xs = collect(-1:0.01:1)[2:end-1]
-    smearf = FermiDirac(εF, inv(basis.model.temperature))
-    ham = Hamiltonian(basis; kws...);
-    Cheb = chebyshev_info(ham.blocks[1], smearf; tol_cheb=nothing, M=Mref)
-    Tm(x;m) = cos(m*acos(x))
-    fM(x) = sum(1:Cheb.order+1) do i
-        Cheb.coef[i] .* Tm.(x;m=i-1)
-    end
-
-    err = []
-    for Ml in Ms
-        Npt = round(Int,1.1Ml)
-        pt = cos.(range(0, 2pi - pi / Npt, length=2Npt))
-        _, coefl = SDFT.genCheb(smearf, true, Ml, pt, Cheb.E1, Cheb.E2, SDFT.KPM(); tol_cheb=nothing)
-        fMl(x) = sum(1:Ml+1) do i
-            coefl[i] .* Tm.(x;m=i-1)
-        end
-        push!(err, norm(fMl(xs) - fM(xs),Inf))
-    end
-    X = [ones(length(Ms)) Ms]
-    a, b = X \ log.(err)
-    c1, c2 = length(basis.kpoints[1].mapping)*exp(a), -b 
-
-    return 4 * c1 * basis.model.n_electrons, c2
-end
-=#
-
 function algebraic_hierarchy(ps, Q0, QL, Qc, ::OptimalPD{N}) where {N}
     L = N - 1
     f(l, p) = ceil((QL - Q0) * ((l + Qc) / (L + Qc))^p + Q0)
@@ -148,7 +117,7 @@ function eval_conv_const(basis::PlaneWaveBasis, ::OptimalEC;
     ρ_coarse = guess_density(basis_coarse)
     ham_coarse = Hamiltonian(basis_coarse; ρ=ρ_coarse)
     nbands = if basis.model.temperature ≥ 0.01
-        determine_n_bands_ks(basis_coarse, 0.0; ρ=ρ_coarse)
+        determine_n_bands_ks(basis_coarse, 0.0; ρ=ρ_coarse, occupation_threshold=1e-3)
     else
         AdaptiveBands(basis.model).n_bands_compute
     end
@@ -167,50 +136,37 @@ function eval_conv_const(basis::PlaneWaveBasis, ::OptimalEC;
     end
 
     smearf = FermiDirac(εF, inv(basis.model.temperature))
-    c1, c2 = eval_ec_const(Ecuts, basis_ref, eigres.λ, eigres.X, x->sqrt(evalf(x, smearf)), ρref)
+    c1, c2 = eval_ec_const(Ecuts, basis_ref, eigres.λ, eigres.X, x->sqrt(evalf(x, smearf)))
 
     return 4 * c1 * basis.model.n_electrons, c2
 end
 
-function eval_ec_const(Ecuts, basis, eigref, ψref, smearf, ρ)
-    nk = length(basis.kpoints)
-    T = eltype(ψref[1])
+function eval_ec_const(Ecuts, basis_ref, eigref, ψref, smearf)
+    nk = length(basis_ref.kpoints)
     f_ref = [smearf.(λ) for λ in eigref]
-    norm_ref_sq = norm.(f_ref) .^ 2
     err = fill(0.0, length(Ecuts))
-    n_bands = length(eigref[1])
+
     for (l, ecl) in enumerate(Ecuts)
-        basisl = PlaneWaveBasis(basis, ecl)
-        ρl = transfer_density(ρ, basis, basisl)
-        haml = Hamiltonian(basisl; ρ=ρl)
-        eigresl = try
-            diagonalize_all_kblocks(lobpcg_hyper, haml, n_bands; ψguess=nothing)
-        catch e
-            diagonalize(basisl; ρ=ρl)
-        end
-        n_bandsl = length(eigresl[1])
         for ik = 1:nk
-            ψl = eigresl.X[ik]
-            f_l = smearf.(eigresl.λ[ik])
-            norm_l_sq = norm(f_l)^2
+            kpt = basis_ref.kpoints[ik]
+           
+            qsq = [sum(abs2, basis_ref.model.recip_lattice * (G + kpt.coordinate))
+                   for G in G_vectors(basis_ref, kpt)] ./ 2
 
-            ψref_cut = transfer_blochwave_kpt(ψref[ik], basis, basis.kpoints[ik],
-                                              basisl, basisl.kpoints[ik])
-            S = ψref_cut' * ψl
+            mask_out = findall(q -> q > ecl, qsq)
 
-            cross_term = 0.0
-            for j in 1:n_bandsl, i in 1:n_bands
-                cross_term += f_ref[ik][i] * f_l[j] * real(abs2(S[i, j]))
+            if !isempty(mask_out)
+                ψ_out = ψref[ik][mask_out, :]
+                for n in 1:length(f_ref[ik])
+                    band_out_norm2 = sum(abs2, ψ_out[:, n])
+                    err[l] += basis_ref.kweights[ik] * f_ref[ik][n] * sqrt(band_out_norm2)
+                end
             end
-
-            current_err_sq = max(0.0, norm_ref_sq[ik] + norm_l_sq - 2 * cross_term)
-
-            err[l] += basis.kweights[ik] * sqrt(current_err_sq)
         end
     end
-    X = [ones(length(Ecuts)) sqrt.(Ecuts)]
-    a, b = X \ log.(err)
 
+    X = [ones(length(Ecuts)) sqrt.(Ecuts)]
+    a, b = X \ log.(err .+ 1e-12)
     return exp(a), -b
 end
 

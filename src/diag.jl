@@ -7,8 +7,10 @@ function compute_density_eigs(basis, εF; n_bands=false, kws...)
     DFTK.compute_density(basis, eigres.X, occupation)
 end
 
-function determine_n_bands_ks(basis, εF; eigensolver=diag_full, n_bands=false, kws...)
-    nbandsalg = AdaptiveBands(basis.model)
+function determine_n_bands_ks(basis::PlaneWaveBasis{T}, εF; 
+                              eigensolver=diag_full, n_bands=false, 
+                              occupation_threshold=DFTK.default_occupation_threshold(T), kws...) where {T}
+    nbandsalg = AdaptiveBands(basis.model; occupation_threshold)
     eigenvalues, ψ = diagonalize(basis; eigensolver, n_bands, kws...)
     occupation = DFTK.compute_occupation(basis, eigenvalues, εF).occupation
     n_bands_converge, _ = DFTK.determine_n_bands(nbandsalg, occupation,
