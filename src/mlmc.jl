@@ -228,7 +228,7 @@ function optimal_hierarchy(pmax, ph, Q0, QL, Qc,
                            kws...) where {T,N}
     if !isnothing(pcustom)
         Ql = algebraic_hierarchy([pcustom], Q0, QL, Qc, MLMC)
-        return Ql[1].(0:N-1)
+        return Ql[1].(0:N-1), pcustom
     end
 
     @assert pmax > ph
@@ -278,4 +278,16 @@ function estimate_digits(x::Real)
     return 10^Int(dm + dr)
 end
 
-optimal_ns(vars, costs, tot_tol) = ceil.(Int, inv(tot_tol)^2 * sqrt.(vars ./ costs) .* sum(sqrt.(vars .* costs)))
+function optimal_ns(var::Real, cost::Real, tot_tol)
+    if var < 0 && abs(var) < 1e-10
+        ns = 1
+    else
+        ns = ceil(Int, inv(tot_tol)^2 * sqrt(var/cost) * sum(sqrt(var * cost)))
+    end
+
+    return ns
+end
+
+function optimal_ns(vars, costs, tot_tol)
+    [optimal_ns(v, c, tot_tol) for (v,c) in zip(vars,costs)]
+end

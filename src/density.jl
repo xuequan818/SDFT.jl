@@ -104,57 +104,48 @@ function compute_stoc_density(basis::PlaneWaveBasis{T},
     basis_list = is_ecut ? ST.basisl : [basis]
 
     nk = length(basis.kpoints)
-    kdata = map(1:nk) do ik
-        ham = hambls[ik]
-        Hs = [S2_ham(iham, Val(cal_way), Cheb.E1, Cheb.E2) for iham in ham]
-        dofs, cols_list = get_total_cols_list(Hs, ST)
-        (; ham, Hs, dofs, cols_list)
-    end
 
-    tasks = map(1:nk) do ik
-        cols_list = kdata[ik].cols_list
-        [(ik=ik, l=l, Ncl=Nc[l], start_col=start_col,
-          end_col=min(start_col + batch_size - 1, cols_list[2l-1])) 
-          for l in 1:nl for start_col in 1:batch_size:cols_list[2l-1]]
-    end
-    tasks = reduce(vcat, tasks)
-
-    function allocate_local_storage()        
-        (;
+    storage = (;
            ρ_acc = [zeros_like(G_vectors(b), T, b.fft_size..., 
                                b.model.n_spin_components) for b in basis_list],
-           ψnk_real = [zeros_like(G_vectors(b), TT, b.fft_size...) for b in basis_list],
            ψ_buf_full = [Matrix{TT}(undef, max_dof, batch_size) for _ in 1:2],
            occ_buf_full = [occfun(batch_size) for _ in 1:2]
         )
-    end
 
-    storages = parallel_loop_over_range(tasks; allocate_local_storage) do task, storage
-        ik, l, Ncl, start_col, end_col = task
-        ham, Hs, dofs, _ = kdata[ik]
+    for ik = 1:nk
+        ham = hambls[ik]
+        Hs = [S2_ham(iham, Val(cal_way), Cheb.E1, Cheb.E2) for iham in ham]
+        dofs, cols_list = get_total_cols_list(Hs, ST)
+        for l = 1:nl
+            Ncl = Nc[l]
+            cols_list_l = cols_list[2l-1]
+            out_indices = (l == 1) ? (1:1) : (2l-2:2l-1)
+            n_out = length(out_indices)
 
-        batch_range = start_col:end_col
-        curr_len = length(batch_range)
-        out_indices = (l == 1) ? (1:1) : (2l-2:2l-1)
-        n_out = length(out_indices)
+            if !isnothing(ψin)
+                ψin_l = [ψin[ik][i] for i in out_indices]
+                occ_in_l = occfun.(size.(ψin_l, 2))
+                accumulate_stoc_density!(storage, basis, ψin_l, occ_in_l, Ncl, ik, l, ST; occupation_threshold)
+            end
 
-        if !isnothing(ψin) && start_col == 1
-            ψin_l = [ψin[ik][i] for i in out_indices]
-            occ_in_l = occfun.(size.(ψin_l,2))
-            accumulate_stoc_density!(storage, basis, ψin_l, occ_in_l, Ncl, ik, l, ST; occupation_threshold)
+            for start_col in 1:batch_size:cols_list[2l-1]
+                end_col = min(start_col + batch_size - 1, cols_list_l)
+                batch_range = start_col:end_col
+                curr_len = length(batch_range)
+
+                ψ_buf = ntuple(idx -> @view(storage.ψ_buf_full[idx][1:dofs[out_indices[idx]], 1:curr_len]), n_out)
+                occ_buf = ntuple(idx -> @view(storage.occ_buf_full[idx][1:curr_len]), n_out)
+
+                compute_wavefun_batch!(ψ_buf, Hs, ham, Cheb, l, batch_range, ST)
+
+                accumulate_stoc_density!(storage, basis, ψ_buf, occ_buf, Ncl, ik, l, ST; occupation_threshold)
+            end
         end
-
-        ψ_buf = ntuple(idx -> @view(storage.ψ_buf_full[idx][1:dofs[out_indices[idx]], 1:curr_len]), n_out)
-        occ_buf = ntuple(idx -> @view(storage.occ_buf_full[idx][1:curr_len]), n_out)
-
-        compute_wavefun_batch!(ψ_buf, Hs, ham, Cheb, l, batch_range, ST)
-
-        accumulate_stoc_density!(storage, basis, ψ_buf, occ_buf, Ncl, ik, l, ST; occupation_threshold)
     end
 
     ρtot = zeros_like(G_vectors(basis), T, basis.fft_size..., basis.model.n_spin_components)
     for il in eachindex(basis_list)
-        ρ_acc_il = sum(storage -> storage.ρ_acc[il], storages)
+        ρ_acc_il = storage.ρ_acc[il]
 
         if is_ecut && il < nl
             ρtot .+= transfer_density(ρ_acc_il, basis_list[il], basis)
@@ -177,8 +168,8 @@ end
 function accumulate_stoc_density!(storage, basis::PlaneWaveBasis{T}, 
                                   ψ, occ, Nc, ik, l, ST::MC; 
                                   occupation_threshold=zero(T)) where {T}
-    compute_density_single_k!(storage.ρ_acc[1], storage.ψnk_real[1], basis, 
-                              ψ[1], occ[1], ik, Nc; occupation_threshold)                              
+    compute_density_single_k!(storage.ρ_acc[1], basis, ψ[1], occ[1],
+                              ik, Nc; occupation_threshold)
     return nothing
 end
 
@@ -186,13 +177,13 @@ function accumulate_stoc_density!(storage, basis::PlaneWaveBasis{T},
                                   ψ, occ, Nc, ik, l, ST::PDegreeML{N}; 
                                   occupation_threshold=zero(T)) where {T,N}
     if l == 1
-        compute_density_single_k!(storage.ρ_acc[1], storage.ψnk_real[1], basis, 
-                                  ψ[1], occ[1], ik, Nc; occupation_threshold)
+        compute_density_single_k!(storage.ρ_acc[1], basis, ψ[1], occ[1],
+                                  ik, Nc; occupation_threshold)
     else
-        compute_density_single_k!(storage.ρ_acc[1], storage.ψnk_real[1], basis, 
-                                  ψ[1], occ[1], ik, -Nc; occupation_threshold)
-        compute_density_single_k!(storage.ρ_acc[1], storage.ψnk_real[1], basis, 
-                                  ψ[2], occ[2], ik, Nc; occupation_threshold)
+        compute_density_single_k!(storage.ρ_acc[1], basis, ψ[1], occ[1],
+                                  ik, -Nc; occupation_threshold)
+        compute_density_single_k!(storage.ρ_acc[1], basis, ψ[2], occ[2],
+                                  ik, Nc; occupation_threshold)
     end
 end
 
@@ -202,17 +193,17 @@ function accumulate_stoc_density!(storage, basis::PlaneWaveBasis{T},
     basisl = ST.basisl
 
     if l == 1
-        compute_density_single_k!(storage.ρ_acc[1], storage.ψnk_real[1], basisl[1], 
-                                  ψ[1], occ[1], ik, Nc; occupation_threshold)
+        compute_density_single_k!(storage.ρ_acc[1], basisl[1], ψ[1], occ[1],
+                                  ik, Nc; occupation_threshold)
     else
-        compute_density_single_k!(storage.ρ_acc[l-1], storage.ψnk_real[l-1], basisl[l-1], 
-                                  ψ[1], occ[1], ik, -Nc; occupation_threshold)
-        compute_density_single_k!(storage.ρ_acc[l], storage.ψnk_real[l], basisl[l], 
-                                  ψ[2], occ[2], ik, Nc; occupation_threshold)
+        compute_density_single_k!(storage.ρ_acc[l-1], basisl[l-1], ψ[1], occ[1],
+                                 ik, -Nc; occupation_threshold)
+        compute_density_single_k!(storage.ρ_acc[l], basisl[l], ψ[2], occ[2],
+                                  ik, Nc; occupation_threshold)
     end
 end
 
-function compute_density_single_k!(ρ, ψnk_real, basis::PlaneWaveBasis{T}, 
+function compute_density_single_k!(ρ, basis::PlaneWaveBasis{T}, 
                                    ψ::AbstractMatrix, 
                                    occupation::AbstractVector{<:Integer}, ik, Nc;
                                    occupation_threshold=zero(T)) where {T}
@@ -224,10 +215,22 @@ function compute_density_single_k!(ρ, ψnk_real, basis::PlaneWaveBasis{T},
     kpt = basis.kpoints[ik]
 
     weight = basis.kweights[ik] * (basis.fft_grid.ifft_normalization)^2 * Nc
-    @views for n in mask_occ
-        ifft!(ψnk_real, basis, kpt, ψ[:, n]; normalize=false)
+
+    function allocate_local_storage()
+        (; ρ_loc=zeros_like(ρ),
+           ψnk_real=zeros_like(G_vectors(basis), complex(T), basis.fft_size...))
+    end
+
+    storages = parallel_loop_over_range(mask_occ; allocate_local_storage) do n, storage
+        ifft!(storage.ψnk_real, basis, kpt, @view(ψ[:, n]); normalize=false)
         weight_n = occ_k[n] * weight
-        ρ[:, :, :, kpt.spin] .+= weight_n .* abs2.(ψnk_real)
+        storage.ρ_loc[:, :, :, kpt.spin] .+= weight_n .* abs2.(storage.ψnk_real)
+    end
+
+    if !isnothing(storages)
+        for st in storages
+            ρ .+= st.ρ_loc
+        end
     end
 
     return ρ

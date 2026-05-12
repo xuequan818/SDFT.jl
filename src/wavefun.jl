@@ -1,42 +1,34 @@
 function compute_stoc_wavefun(hambls, cal_way, Cheb, ST::SDFTMethod; batch_size=256)
     nk = length(hambls)
-    kdata = map(1:nk) do ik
+    nl = count_nl(ST)
+    T = eltype(hambls[1][1])
+    ψml = Vector{Vector{Matrix{T}}}(undef, nk)
+
+    for ik = 1:nk
         ham = hambls[ik]
         Hs = [S2_ham(iham, Val(cal_way), Cheb.E1, Cheb.E2) for iham in ham]
         dofs, cols_list = get_total_cols_list(Hs, ST)
-        (; Hs, dofs, cols_list)
+        
+        ψk = [zeros(T, dofs[i], cols_list[i]) for i = 1:length(dofs)]
 
-        ψml = [zeros(eltype(Hs[1]), dofs[i], cols_list[i]) for i = 1:length(dofs)]
+        for l = 1:nl
+            cols_list_l = cols_list[2l-1]
+            out_indices = (l == 1) ? (1:1) : (2l-2:2l-1)
+            n_out = length(out_indices)
 
-        (; ham, Hs, dofs, cols_list, ψml)
+            for start_col in 1:batch_size:cols_list[2l-1]
+                end_col = min(start_col + batch_size - 1, cols_list_l)
+                batch_range = start_col:end_col
+
+                ψ_buf = ntuple(idx -> @view(ψk[out_indices[idx]][:, batch_range]), n_out)
+
+                compute_wavefun_batch!(ψ_buf, Hs, ham, Cheb, l, batch_range, ST)
+            end
+        end
+        ψml[ik] = ψk
     end
 
-    nl = count_nl(ST)
-    tasks = map(1:nk) do ik
-        cols_list = kdata[ik].cols_list
-        [(ik=ik, l=l, start_col=start_col,
-          end_col=min(start_col + batch_size - 1, cols_list[2l-1])) 
-          for l in 1:nl for start_col in 1:batch_size:cols_list[2l-1]]
-    end
-    tasks = reduce(vcat, tasks)
-
-    parallel_loop_over_range(tasks) do task
-        ik, l, start_col, end_col = task
-
-        ham = kdata[ik].ham
-        Hs = kdata[ik].Hs
-        ψml = kdata[ik].ψml
-
-        batch_range = start_col:end_col
-        out_indices = (l == 1) ? (1:1) : (2l-2:2l-1)
-        n_out = length(out_indices)
-
-        ψ_buf = ntuple(idx -> @view(ψml[out_indices[idx]][:, batch_range]), n_out)
-
-        compute_wavefun_batch!(ψ_buf, Hs, ham, Cheb, l, batch_range, ST)
-    end
-
-    return [kdata[ik].ψml for ik in 1:nk]
+    return ψml
 end
 
 function count_orbital_by_wf(ψ::Vector{<:AbstractArray}, ::SDFTMethod)
