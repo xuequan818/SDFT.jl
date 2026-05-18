@@ -38,12 +38,14 @@ function compute_stoc_density(basis::PlaneWaveBasis{T},
     if isoptML
         t0 = time()
 
-        ST, p_opt, var, ψin, hambls = optimal_mlmc(basis, Cheb, OptimalPD(Cheb.order, ST.nsl, ST.d); kws...)
+        ST, p_opt, var, ψin, hambls = optimal_mlmc(basis, Cheb, OptimalPD(Cheb.order, ST.nsl, ST.d); cal_way, batch_size, kws...)
         elapsed = round(time() - t0; digits=1)
 
-        println("  Building Optimal PDML with q=$(p_opt) in $(elapsed)s.\n")
-        println("  Level Information:\n")
-        println("  Polynomial degrees: $(ST.Ml)")
+        if N > 1
+            println("  Building Optimal PDML for L=$(N-1) with q=$(p_opt) in $(elapsed)s.\n")
+            println("  Level Information:\n")
+            println("  Polynomial degrees: $(ST.Ml)")
+        end
         println("  Orbital numbers:    $(ST.nsl)\n")
         flush(stdout)
     else
@@ -65,14 +67,16 @@ function compute_stoc_density(basis::PlaneWaveBasis{T},
     if isoptML
         t0 = time()
 
-        ST, p_opt, var, ψin, hambls = optimal_mlmc(basis, Cheb, OptimalEC(basis.Ecut, ST.nsl, ST.d); kws...)
+        ST, p_opt, var, ψin, hambls = optimal_mlmc(basis, Cheb, OptimalEC(basis.Ecut, ST.nsl, ST.d); cal_way, batch_size, kws...)
         elapsed = round(time() - t0; digits=1)
 
-        println("  Building Optimal ECML with p=$(p_opt) in $(elapsed)s.\n")
-        println("  Level Information:\n")
-        Ecl = tuple(round.(take_cut.(ST.basisl),digits=2)...)
-        println("  Energy cutoffs:  $(Ecl)\n")
-        println("  Orbital numbers: $(ST.nsl)\n")
+        if N > 1
+            println("  Building Optimal ECML for L=$(N-1) with p=$(p_opt) in $(elapsed)s.\n")
+            println("  Level Information:\n")
+            Ecl = tuple(round.(take_cut.(ST.basisl),digits=2)...)
+            println("  Energy cutoffs:  $(Ecl)\n")
+        end
+        println("  Orbital numbers:    $(ST.nsl)\n")
         flush(stdout)
     else
         hambls = all_level_ham_blocks(basis, ST; kws...)

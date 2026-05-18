@@ -46,6 +46,9 @@ include("mlmc.jl")
 export compute_stoc_density
 include("density.jl")
 
+export compute_fermi_level
+include("fermi_level.jl")
+
 include("diag.jl")
 
 end # module SDFT

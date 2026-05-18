@@ -1,17 +1,30 @@
 using SDFT
 include("testcase.jl")
 
-function run_ks_time(Ecut, temperature, repeat)
-    basis = carbon_setup(repeat; Ecut, temperature)
-    ρ, εF = coarse_initial(basis)
+function run_ks_time(Ecut, temperature, kgrid, repeat;
+                     Ecut_init=8, Ecut_fermi=Ecut,
+                     refine_fermi=true)
+    basis = carbon_setup(repeat; Ecut, temperature, kgrid)
+    ρ, εF = coarse_initial(basis; Ecut_init)
 
-    nbands = if basis.model.temperature ≥ 0.01
-        basis_coarse = PlaneWaveBasis(basis, 5)
-        n_bands_coarse = determine_n_bands_ks(basis_coarse, εF; ρ=guess_density(basis_coarse))
+    if refine_fermi
+        εF = estimate_fermi(basis, ρ, εF; Ecut_fermi)
+    end
+
+    nbands = if 0.01 ≤ basis.model.temperature < 0.5
+        basis_coarse = PlaneWaveBasis(basis, Ecut_init)
+        ρ_coarse = DFTK.transfer_density(ρ, basis, basis_coarse)
+        n_bands_coarse = determine_n_bands_ks(basis_coarse, εF; ρ=ρ_coarse)
+
         determine_n_bands_ks(basis, εF; eigensolver=lobpcg_hyper, ρ, n_bands=2n_bands_coarse)
-    else
+    elseif basis.model.temperature ≥ 0.5
+        determine_n_bands_ks(basis, εF; eigensolver=diag_full, ρ)
+    else 
         AdaptiveBands(basis.model).n_bands_compute
     end
+
+    println("  nbands:    $(nbands)\n")
+    flush(stdout)
 
     t0 = time()
     compute_density_eigs(basis, εF; ρ, n_bands=nbands)
@@ -20,9 +33,16 @@ function run_ks_time(Ecut, temperature, repeat)
     return elapsed
 end
 
-function run_mlmcpd_time(L, Ecut, temperature, repeat; Ns=500, kws...)
-    basis = carbon_setup(repeat; Ecut, temperature)
-    ρ, εF = coarse_initial(basis)
+function run_mlmcpd_time(L, Ecut, temperature, repeat; 
+                         Ns=500, kgrid=[1, 1, 1], 
+                         Ecut_init=8, Ecut_fermi=Ecut,
+                         refine_fermi=true, kws...)
+    basis = carbon_setup(repeat; Ecut, temperature, kgrid)
+    ρ, εF = coarse_initial(basis; Ecut_init)
+    if refine_fermi
+        εF = estimate_fermi(basis, ρ, εF; Ecut_fermi)
+    end
+
     nsl = ceil.(Int, Ns ./ [2^i for i = 0:L])
 
     t0 = time()
@@ -32,10 +52,17 @@ function run_mlmcpd_time(L, Ecut, temperature, repeat; Ns=500, kws...)
     return elapsed
 end
 
-function run_mlmcec_time(L, Ecut, temperature, repeat; Ns=500, kws...)
-    basis = carbon_setup(repeat; Ecut, temperature)
-    ρ, εF = coarse_initial(basis)
-    nsl = ceil.(Int, Ns ./ [2^i for i = 0:L])
+function run_mlmcec_time(L, Ecut, temperature, repeat; 
+                         Ns=500, kgrid=[1, 1, 1], 
+                         Ecut_init=8, Ecut_fermi=Ecut,
+                         refine_fermi=true, kws...)
+    basis = carbon_setup(repeat; Ecut, temperature, kgrid)
+    ρ, εF = coarse_initial(basis; Ecut_init)
+    if refine_fermi
+        εF = estimate_fermi(basis, ρ, εF; Ecut_fermi)
+    end
+
+    nsl = ceil.(Int, Ns ./ [2^i for i = 0:L]) .+ 10
 
     t0 = time()
     compute_stoc_density(basis, εF, ECutoffML(basis, nsl); ρ, kws...)
@@ -44,12 +71,72 @@ function run_mlmcec_time(L, Ecut, temperature, repeat; Ns=500, kws...)
     return elapsed
 end
 
-function coarse_initial(basis)
-    basis_coarse = PlaneWaveBasis(basis, 8)
-    scfres_coarse = self_consistent_field(basis_coarse; callback=(_) -> nothing)
+function coarse_initial(basis; Ecut_init=8)
+    try
+        basis_coarse = PlaneWaveBasis(basis, Ecut_init)
 
-    ρ = DFTK.transfer_density(scfres_coarse.ρ, basis_coarse, basis)
-    εF = scfres_coarse.εF
+        scfres_coarse = self_consistent_field(
+            basis_coarse;
+            callback = (_) -> nothing,
+        )
 
-    return (; ρint=ρ, εFint=εF)
+        ρ = DFTK.transfer_density(scfres_coarse.ρ, basis_coarse, basis)
+        εF = scfres_coarse.εF
+
+        return (; ρ, εF)
+    catch e
+        @warn "coarse_initial failed. Use guess_density and εF = 0.0 instead." exception=e
+
+        ρ = guess_density(basis)
+        εF = 0.0
+
+        return (; ρ, εF)
+    end
+end
+
+function estimate_fermi(basis, ρ, εF0; Ecut_fermi=10, extra_bands=30)
+    basis_f = PlaneWaveBasis(basis, Ecut_fermi)
+    ρf = DFTK.transfer_density(ρ, basis, basis_f)
+
+    if basis.model.temperature ≤ 0.2
+        try
+            nbands_f = AdaptiveBands(basis_f.model).n_bands_compute + extra_bands
+            ham_f = Hamiltonian(basis_f; ρ=ρf)
+            eigres_f = diagonalize_all_kblocks(lobpcg_hyper, ham_f, nbands_f; ψguess=nothing)
+
+            _, εF = DFTK.compute_occupation(basis_f, eigres_f.λ)
+        catch e
+            εF = compute_fermi_level(basis_f; ρ=ρf, tol_cheb=1e-4, tol_n_elec=1e-4)
+        end
+    else
+        εF = compute_fermi_level(basis_f; ρ=ρf, tol_cheb=1e-4, tol_n_elec=1e-4)
+    end
+
+    return εF
+end
+
+# generate fermi level by Chebyshev
+function compute_nelec_trace(H::Matrix{ComplexF64}, E1::Float64, E2::Float64, β, μ, M)
+    FD = FermiDirac((μ - E1) / E2, β * E2)
+    ChebP = ChebyshevP(M, FD)
+    cf = ChebP.coef
+
+    npw = size(H, 1)
+    ψ = DFTK.ortho_qr(randn(ComplexF64, npw, npw))
+    nelec = 0.
+    for i = 1:npw
+        u0 = ψ[:, i]
+        u1 = H * u0
+        z = cf[1] .* u0 + cf[2] .* u1
+        for m = 3:M+1
+            u2 = H * u1
+            u2 = 2.0 * u2 - u0
+            z += cf[m] * u2
+
+            u0 = u1
+            u1 = u2
+        end
+        nelec += real(z' * z)
+    end
+    return nelec
 end

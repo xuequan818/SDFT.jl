@@ -17,6 +17,9 @@ function run_mlmcpd_var(L; case_setup="graphene",
     ρ = guess_density(basis);
     ham = Hamiltonian(basis; ρ)
     nbands = AdaptiveBands(basis.model).n_bands_compute
+    if temperature > 1e-3
+        nbands += 10
+    end
     eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, nbands; ψguess=nothing) 
     occupation, εF = DFTK.compute_occupation(ham.basis, eigres.λ)
 
@@ -60,6 +63,9 @@ function run_mlmcec_var(L; case_setup="graphene",
     ρ = guess_density(basis);
     ham = Hamiltonian(basis; ρ)
     nbands = AdaptiveBands(basis.model).n_bands_compute
+    if temperature > 1e-3
+        nbands += 10
+    end
     eigres = diagonalize_all_kblocks(lobpcg_hyper, ham, nbands; ψguess=nothing) 
     occupation, εF = DFTK.compute_occupation(ham.basis, eigres.λ)
     @show dof = size(ham.blocks[1], 1)

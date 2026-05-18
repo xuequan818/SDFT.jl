@@ -13,7 +13,8 @@ cheb_bound(Cheb::ChebInfo) = (; Cheb.E1, Cheb.E2)
 function chebyshev_info(x::Union{PlaneWaveBasis,HamiltonianBlock}, 
                         smearfs, M, cal_way::Symbol;
                         is_sqrt=true, cheb_method=KPM(),
-                        Npt=round(Int,1.1M), kws...)
+                        Npt_ratio=1.1,
+                        Npt=round(Int,Npt_ratio*M), kws...)
     @assert cal_way in [:cal_mat, :cal_op]
     TT = real(eltype(x))
 
@@ -117,7 +118,8 @@ function genCheb(smearfs, M::Integer,
                  E1::T, E2::T;
                  is_sqrt=true,
                  cheb_method=KPM(),
-                 Npt=round(Int,1.1M), 
+                 Npt_ratio=1.1,
+                 Npt=round(Int,Npt_ratio*M), 
 				 kws...) where {T<:Real}
     pt = cos.(range(0, 2pi - pi / Npt, length=2Npt))
     genCheb(smearfs, is_sqrt, M, pt, E1, E2, cheb_method; kws...)

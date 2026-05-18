@@ -245,16 +245,16 @@ mlmc_pd_cost = let
         pd_t = data_cost["mlmc_time"][ind, :, :]
         mc_t = data_cost["mc_time"][ind, :, :]
         temperatures = data_cost["temperatures"]
-        #M0 = data_cost["Ql_mat"][1][1]
+        M0 = data_cost["Ql_mat"][1][1]
 
         fig, ax = plt.subplots(figsize=(figsize[1], figsize[2]))
         for (j, tp) in enumerate(temperatures)
-            xs = Ne[:, :, j] .* ns[:, :, j]
+            xs = M0 .* Ne[:, :, j] .* ns[:, :, j]
             ib = Int(log10(inv(tp)))
             ax.scatter(xs, pd_t[:, :, j], label=L"\beta=10^%$ib"; pdplot[j]...)
         end
 
-        xxs = sort(unique(Ne .* ns))
+        xxs = sort(unique(M0 .* Ne .* ns))
         if i == 1
             k = 1.3
         elseif i == 2
@@ -269,7 +269,7 @@ mlmc_pd_cost = let
         ax.set_xscale("log")
         ax.set_xlim(10^(log10(xxs[1]) - 0.2), 10^(log10(xxs[end]) + 0.2))
         ax.legend()
-        ax.set_xlabel(L"nN")
+        ax.set_xlabel(L"nNM^{(0)}")
         ax.set_ylabel("Cost")
 
         if i == 1
@@ -309,28 +309,17 @@ mlmc_ec_cost = let
         Ne = data_cost["Ne_mat"][ind, :, :]
         ns = data_cost["ns_mat"][ind, :, :]
         Ms = data_cost["Ms_mat"][ind, :, :]
+        n0 = data_cost["n0_mat"][ind, :, :]
         ec_t = data_cost["mlmc_time"][ind, :, :]
         mc_t = data_cost["mc_time"][ind, :, :]
 
-        #=
-        N12s = [[n1, n2] for n1 in 1:5 for n2 in 1:n1]
-        N12s = N12s[findall(x -> prod(x) <= 10, N12s)][ind]
-        n0 = similar(ns)
-        Qls = data_cost["Ql_mat"]
-        take_dof(basis) = length(basis.kpoints[1].mapping)
-        for k = 1:length(N12s), l = 1:length(Ecuts)
-            basis = graphene_setup(N12s[k]; Ecut=Qls[k, l][1])
-            n0[k, l, 1] = take_dof(basis)
-        end
-        =#
-
         fig, ax = plt.subplots(figsize=(figsize[1], figsize[2]))
         for (ei, ecut) in enumerate(Ecuts)
-            xs = Ne[:, ei, :] .^ 2 .* Ms[:, ei, :]
+            xs = n0[:, ei, :] .* Ne[:, ei, :] .* Ms[:, ei, :]
             ax.scatter(xs, ec_t[:, ei, :], label=L"E_{\rm c}=%$ecut"; ecplot[ei]...)
         end
 
-        xxs = sort(unique(Ne .^ 2 .* Ms))
+        xxs = sort(unique(Ne .* n0 .* Ms))
         if i == 1
             ks = 1.2
         elseif i == 2
@@ -344,10 +333,10 @@ mlmc_ec_cost = let
         ax.set_yscale("log")
         ax.set_xscale("log")
         ax.set_xlim(10^(log10(xxs[1]) - 0.2), 10^(log10(xxs[end]) + 0.2))
-        ax.set_xticks(10 .^ [4.5, 5.5, 6.5])
-        ax.set_xticklabels([L"10^{4.5}", L"10^{5.5}", L"10^{6.5}"])
+        #ax.set_xticks(10 .^ [6, 7, 8])
+        #ax.set_xticklabels([L"10^{6}", L"10^{7}", L"10^{8}"])
         ax.legend()
-        ax.set_xlabel(L"N^2M")
+        ax.set_xlabel(L"n^{(0)}NM")
         ax.set_ylabel("Cost")
 
         if i == 1
