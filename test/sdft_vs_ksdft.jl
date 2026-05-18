@@ -114,29 +114,3 @@ function estimate_fermi(basis, ρ, εF0; Ecut_fermi=10, extra_bands=30)
 
     return εF
 end
-
-# generate fermi level by Chebyshev
-function compute_nelec_trace(H::Matrix{ComplexF64}, E1::Float64, E2::Float64, β, μ, M)
-    FD = FermiDirac((μ - E1) / E2, β * E2)
-    ChebP = ChebyshevP(M, FD)
-    cf = ChebP.coef
-
-    npw = size(H, 1)
-    ψ = DFTK.ortho_qr(randn(ComplexF64, npw, npw))
-    nelec = 0.
-    for i = 1:npw
-        u0 = ψ[:, i]
-        u1 = H * u0
-        z = cf[1] .* u0 + cf[2] .* u1
-        for m = 3:M+1
-            u2 = H * u1
-            u2 = 2.0 * u2 - u0
-            z += cf[m] * u2
-
-            u0 = u1
-            u1 = u2
-        end
-        nelec += real(z' * z)
-    end
-    return nelec
-end
