@@ -71,7 +71,7 @@ for mlmcfun in [:run_mlmcpd, :run_mlmcec]
         ns_mc = Int(cld(var[2][end], ϵ^2))
         @show ns_mc
 
-        mc_time = ns_mc * Cheb.order * take_dof(basis) / basis.model.n_electrons
+        mc_time = ns_mc * Cheb.order * take_dof(basis)
         #=
         mc_start_time = time()
         ρmc = compute_stoc_density(basis, 0, MC(ns_mc); Cheb, ρ, cal_way);
@@ -86,10 +86,10 @@ end
 function _run_mlmcpd_cost(L; ϵ=1.0, cal_way=:cal_mat, kws...)
     var, Ql, ψ, basis, Cheb, ρ = run_mlmcpd_var(L; cal_way, kws...)
 
-    pd_nsl = SDFT.optimal_ns(var[1], Ql, ϵ)
+    pd_nsl = SDFT.optimal_ns(var[1], Ql, ϵ, basis)
     @show pd_nsl
 
-    pd_time = sum(pd_nsl .* Ql) * take_dof(basis) / basis.model.n_electrons
+    pd_time = sum(pd_nsl .* Ql) * take_dof(basis)
     # PDML = PDegreeML(Ql, pd_nsl)
     # pd_start_time = time()
     # ρpd = compute_stoc_density(basis, 0, PDML; Cheb, ρ, ψin=ψ, cal_way);
@@ -105,12 +105,12 @@ function _run_mlmcec_cost(L; ϵ=1.0, cal_way=:cal_mat, kws...)
     dim = basis.model.n_dim
     fc(l) = isone(l) ? Ql[l]^(dim / 2) : (Ql[l]^(dim / 2) + Ql[l-1]^(dim / 2))
     Cl = fc.(1:length(Ql))
-    ec_nsl = SDFT.optimal_ns(var[1], Cl, ϵ)
+    ec_nsl = SDFT.optimal_ns(var[1], Cl, ϵ, basis)
     @show ec_nsl
     ECML = ECutoffML(basis, Ql, ec_nsl)
 
     fc2(l) = isone(l) ? take_dof(ECML.basisl[l]) : (take_dof(ECML.basisl[l]) + take_dof(ECML.basisl[l-1]))
-    ec_time = sum(fc2.(1:length(Ql)) .* ec_nsl) * Cheb.order / basis.model.n_electrons
+    ec_time = sum(fc2.(1:length(Ql)) .* ec_nsl) * Cheb.order
     # ec_start_time = time()
     # ρec = compute_stoc_density(basis, 0, ECML; Cheb, ρ, ψin=ψ, cal_way);    
     # ec_end_time = time()

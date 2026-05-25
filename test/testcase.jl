@@ -8,10 +8,10 @@ using AtomsBuilder
 
 ## 3D systems
 
-function carbon_setup(repeats; Ecut=7.0, kgrid=[1, 1, 1], temperature=1e-3)
-    ## Use AtomsBuilder to setup carbon cubic unit cell (8 Si atoms)
+function silicon_setup(repeats; Ecut=7.0, kgrid=[1, 1, 1], temperature=1e-3)
+    ## Use AtomsBuilder to setup silicon cubic unit cell (8 Si atoms)
     ## with provided lattice constant, see [AtomsBase integration](@ref) for details.
-    unit_cell = bulk(:C; cubic=true)
+    unit_cell = bulk(:Si; cubic=true)
     supercell = unit_cell * tuple(repeats...)  # Make a supercell
 
     pseudopotentials = PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth")

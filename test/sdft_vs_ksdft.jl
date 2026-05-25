@@ -1,49 +1,56 @@
 using SDFT
 include("testcase.jl")
 
-function run_ks_time(Ecut, temperature, kgrid, repeat;
-                     Ecut_init=8, Ecut_fermi=Ecut,
-                     refine_fermi=true)
-    basis = carbon_setup(repeat; Ecut, temperature, kgrid)
-    ρ, εF = coarse_initial(basis; Ecut_init)
+function run_ks_time(Ecut, temperature, repeat;
+                     kgrid=[1,1,1],
+                     Ecut_fermi=min(10,Ecut),
+                     Ecut_coarse=35*prod(repeat)^(-2/3),
+                     max_band_fraction=0.33)
+    basis = silicon_setup(repeat; Ecut, temperature, kgrid)
+    dof = take_dof(basis)
+    ρ = guess_density(basis)
+    εF = estimate_fermi(basis, ρ; Ecut_fermi)
 
-    if refine_fermi
-        εF = estimate_fermi(basis, ρ, εF; Ecut_fermi)
-    end
+    determine_solver(nb) = (nb / dof ≤ max_band_fraction) ? lobpcg_hyper : lapack_partial
 
-    nbands = if 0.01 ≤ basis.model.temperature < 0.5
-        basis_coarse = PlaneWaveBasis(basis, Ecut_init)
+    occupation_threshold = 1e-6
+    temp = basis.model.temperature
+    nbands = if temp ≥ 0.01
+        basis_coarse = PlaneWaveBasis(basis, Ecut_coarse)
         ρ_coarse = DFTK.transfer_density(ρ, basis, basis_coarse)
-        n_bands_coarse = determine_n_bands_ks(basis_coarse, εF; ρ=ρ_coarse)
+        n_bands_coarse = determine_n_bands_ks(diag_full, basis_coarse, εF; 
+                                              ρ=ρ_coarse, occupation_threshold)
 
-        determine_n_bands_ks(basis, εF; eigensolver=lobpcg_hyper, ρ, n_bands=2n_bands_coarse)
-    elseif basis.model.temperature ≥ 0.5
-        determine_n_bands_ks(basis, εF; eigensolver=diag_full, ρ)
+        @show n_bands_coarse
+        n_bands = Int(ceil((temp ≤ 0.2 ? 1.1 : 1.2) * n_bands_coarse))
+        eigensolver = determine_solver(n_bands)
+
+        determine_n_bands_ks(eigensolver, basis, εF; ρ, n_bands, occupation_threshold)
     else 
         AdaptiveBands(basis.model).n_bands_compute
     end
 
-    println("  nbands:    $(nbands)\n")
+    eigensolver = determine_solver(nbands)
+
+    println("  nbands: $(nbands),  eigensolver: $(eigensolver)\n")
     flush(stdout)
 
     t0 = time()
-    compute_density_eigs(basis, εF; ρ, n_bands=nbands)
+    compute_density_eigs(basis, εF, eigensolver, nbands; ρ)
     elapsed = round(time() - t0; digits=1)
 
     return elapsed
 end
 
 function run_mlmcpd_time(L, Ecut, temperature, repeat; 
-                         Ns=500, kgrid=[1, 1, 1], 
-                         Ecut_init=8, Ecut_fermi=Ecut,
-                         refine_fermi=true, kws...)
-    basis = carbon_setup(repeat; Ecut, temperature, kgrid)
-    ρ, εF = coarse_initial(basis; Ecut_init)
-    if refine_fermi
-        εF = estimate_fermi(basis, ρ, εF; Ecut_fermi)
-    end
+                         Ns=100, kgrid=[1, 1, 1], 
+                         Ecut_fermi=min(10,Ecut), kws...)
+    basis = silicon_setup(repeat; Ecut, temperature, kgrid)
+    ρ = guess_density(basis)
+    εF = estimate_fermi(basis, ρ; Ecut_fermi)
 
-    nsl = ceil.(Int, Ns ./ [2^i for i = 0:L])
+    nsl = ceil.(Int, Ns ./ [2^i for i = 0:L]) 
+    nsl = [i <= 10 ? 10 : i for i in nsl]
 
     t0 = time()
     compute_stoc_density(basis, εF, PDegreeML(nsl); ρ, kws...)
@@ -53,16 +60,14 @@ function run_mlmcpd_time(L, Ecut, temperature, repeat;
 end
 
 function run_mlmcec_time(L, Ecut, temperature, repeat; 
-                         Ns=500, kgrid=[1, 1, 1], 
-                         Ecut_init=8, Ecut_fermi=Ecut,
-                         refine_fermi=true, kws...)
-    basis = carbon_setup(repeat; Ecut, temperature, kgrid)
-    ρ, εF = coarse_initial(basis; Ecut_init)
-    if refine_fermi
-        εF = estimate_fermi(basis, ρ, εF; Ecut_fermi)
-    end
+                         Ns=100, kgrid=[1, 1, 1], 
+                         Ecut_fermi=min(10,Ecut), kws...)
+    basis = silicon_setup(repeat; Ecut, temperature, kgrid)
+    ρ = guess_density(basis)
+    εF = estimate_fermi(basis, ρ; Ecut_fermi)
 
-    nsl = ceil.(Int, Ns ./ [2^i for i = 0:L]) .+ 10
+    nsl = ceil.(Int, Ns ./ [2^i for i = 0:L])
+    nsl = [i <= 10 ? 10 : i for i in nsl]
 
     t0 = time()
     compute_stoc_density(basis, εF, ECutoffML(basis, nsl); ρ, kws...)
@@ -71,34 +76,11 @@ function run_mlmcec_time(L, Ecut, temperature, repeat;
     return elapsed
 end
 
-function coarse_initial(basis; Ecut_init=8)
-    try
-        basis_coarse = PlaneWaveBasis(basis, Ecut_init)
-
-        scfres_coarse = self_consistent_field(
-            basis_coarse;
-            callback = (_) -> nothing,
-        )
-
-        ρ = DFTK.transfer_density(scfres_coarse.ρ, basis_coarse, basis)
-        εF = scfres_coarse.εF
-
-        return (; ρ, εF)
-    catch e
-        @warn "coarse_initial failed. Use guess_density and εF = 0.0 instead." exception=e
-
-        ρ = guess_density(basis)
-        εF = 0.0
-
-        return (; ρ, εF)
-    end
-end
-
-function estimate_fermi(basis, ρ, εF0; Ecut_fermi=10, extra_bands=30)
+function estimate_fermi(basis, ρ; Ecut_fermi=10, extra_bands=50)
     basis_f = PlaneWaveBasis(basis, Ecut_fermi)
     ρf = DFTK.transfer_density(ρ, basis, basis_f)
 
-    if basis.model.temperature ≤ 0.2
+    if basis.model.temperature ≤ 0.3
         try
             nbands_f = AdaptiveBands(basis_f.model).n_bands_compute + extra_bands
             ham_f = Hamiltonian(basis_f; ρ=ρf)
