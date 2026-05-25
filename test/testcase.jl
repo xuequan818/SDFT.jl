@@ -18,7 +18,7 @@ function silicon_setup(repeats; Ecut=7.0, kgrid=[1, 1, 1], temperature=1e-3)
     model = model_DFT(supercell; pseudopotentials, functionals=PBE(),
                       temperature, symmetries=false)
     PlaneWaveBasis(model; Ecut, kgrid)
-end;
+end
 
 ## graphene-type systems
 

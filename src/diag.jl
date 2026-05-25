@@ -30,15 +30,10 @@ function diagonalize(eigensolver, basis, n_bands::Int; kws...)
     (; λ=getfield(data, :λ), X=getfield(data, :X))
 end
 
-function lapack_partial(A, X0; kwargs...)
+function lapack_partial(A, X0; kws...)
     Neig = size(X0, 2)
     Afull = Hermitian(Array(A))
     E = eigen(Afull, 1:Neig)
-    X = E.vectors
-    λ = E.values
-    (; λ, X,
-     residual_norms=zeros(Neig),
-     n_iter=0,
-     converged=true,
-     n_matvec=0)
+
+    (; λ=E.values, X=E.vectors)
 end

@@ -52,7 +52,7 @@ function bracket_fermi_level(excess, Cheb, temperature::T; εF_maxiter=80) where
     fmax = excess(εmax)
 
     for _ in 1:εF_maxiter
-        # We need excess(εmin) < 0 < excess(εmax).
+        # Require excess(εmin) < 0 < excess(εmax).
         if fmin < 0 && fmax > 0
             return εmin, εmax
         end
