@@ -23,7 +23,7 @@ function optimal_mlmc(basis, Cheb::ChebInfo, ST::OptimalMLMC{N};
         vars, ψ, hambl = estimate_var(basis, Cheb, ST1; ρ=guess_density(basis), kws...)
         nsl = optimal_ns([vars[1, 1]], [1.0], tot_tol, basis)
 
-        return MC(nsl), nothing, vars, ψ, hambl
+        return MC(nsl), 0.0, vars, ψ, hambl
     end
 end
 
@@ -135,13 +135,15 @@ function mlmc_cost(ecl::Function, basis::PlaneWaveBasis,
     return cost
 end
 
-function estimate_fermi(basis, ρ; Ecut_fermi=10, extra_bands=30)
+function estimate_fermi(basis, ρ; Ecut_fermi=10, extra_bands=100)
     basis_f = PlaneWaveBasis(basis, Ecut_fermi)
     ρf = DFTK.transfer_density(ρ, basis, basis_f)
 
     if basis.model.temperature ≤ 0.2
         try
             nbands_f = AdaptiveBands(basis_f.model).n_bands_compute + extra_bands
+            max_nb = div(minimum(ik -> take_dof(basis_f, ik), 1:length(basis_f.kpoints)),3)
+            nbands_f = min(max_nb, nbands_f)
             ham_f = Hamiltonian(basis_f; ρ=ρf)
             eigres_f = diagonalize_all_kblocks(lobpcg_hyper, ham_f, nbands_f; ψguess=nothing)
 

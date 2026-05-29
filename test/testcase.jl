@@ -5,10 +5,11 @@ using PseudoPotentialData
 using UnitfulAtomic, Unitful
 using AtomsBase
 using AtomsBuilder
+using Distributions
 
 ## 3D systems
 
-function silicon_setup(repeats; Ecut=7.0, kgrid=[1, 1, 1], temperature=1e-3)
+function silicon_setup(repeats=[1, 1, 1]; Ecut=7.0, kgrid=[1, 1, 1], temperature=1e-3)
     ## Use AtomsBuilder to setup silicon cubic unit cell (8 Si atoms)
     ## with provided lattice constant, see [AtomsBase integration](@ref) for details.
     unit_cell = bulk(:Si; cubic=true)

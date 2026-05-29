@@ -64,7 +64,7 @@ function outersum!(result::AbstractMatrix, x::AbstractVector, a::Number)
     result
 end
 
-function run_var(Nmax::Int; case_setup="graphene", 
+function run_var(Nmax::Int; sys="graphene", 
                  Ns=500, Ecut=15, 
                  temperature=1e-3, 
                  M=5000, tol_cheb=1e-3,
@@ -76,7 +76,7 @@ function run_var(Nmax::Int; case_setup="graphene",
     count = 1
     for ni = 1:Nmax
         for nj in 1:ni
-            fun = eval(Symbol(case_setup, "_setup"))
+            fun = eval(Symbol(sys, "_setup"))
             basis = fun([ni, nj]; Ecut, temperature)
             push!(Ne, basis.model.n_electrons)
             dof = length(basis.kpoints[1].mapping)
@@ -96,7 +96,7 @@ function run_var(Nmax::Int; case_setup="graphene",
     
     function save_output(outdir)
         date_str = Dates.format(now(), "yyyymmdd_HH_MM")
-        output_file = joinpath(outdir, "variance_$(case_setup)_$(date_str).jld2")
+        output_file = joinpath(outdir, "variance_$(sys)_$(date_str).jld2")
         jldsave(output_file; Ns, Ecut, temperature, Ne, Var, VarT)
     end
 

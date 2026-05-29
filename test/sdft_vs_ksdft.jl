@@ -1,4 +1,5 @@
 using SDFT
+using SDFT: estimate_fermi
 include("testcase.jl")
 
 function run_ks_time(Ecut, temperature, repeat;
@@ -36,10 +37,10 @@ function run_ks_time(Ecut, temperature, repeat;
     flush(stdout)
 
     t0 = time()
-    compute_density_eigs(basis, εF, eigensolver, nbands; ρ)
+    ρout = compute_density_eigs(basis, εF, eigensolver, nbands; ρ)
     elapsed = round(time() - t0; digits=1)
 
-    return elapsed
+    return elapsed, ρout, basis.dvol
 end
 
 function run_mlmcpd_time(L, Ecut, temperature, repeat; 
@@ -53,10 +54,10 @@ function run_mlmcpd_time(L, Ecut, temperature, repeat;
     nsl = [i <= 10 ? 10 : i for i in nsl]
 
     t0 = time()
-    compute_stoc_density(basis, εF, PDegreeML(nsl); ρ, kws...)
+    ρout = compute_stoc_density(basis, εF, PDegreeML(nsl); ρ, kws...)
     elapsed = round(time() - t0; digits=1)
 
-    return elapsed
+    return elapsed, ρout
 end
 
 function run_mlmcec_time(L, Ecut, temperature, repeat; 
@@ -70,29 +71,8 @@ function run_mlmcec_time(L, Ecut, temperature, repeat;
     nsl = [i <= 10 ? 10 : i for i in nsl]
 
     t0 = time()
-    compute_stoc_density(basis, εF, ECutoffML(basis, nsl); ρ, kws...)
+    ρout = compute_stoc_density(basis, εF, ECutoffML(basis, nsl); ρ, kws...)
     elapsed = round(time() - t0; digits=1)
 
-    return elapsed
-end
-
-function estimate_fermi(basis, ρ; Ecut_fermi=10, extra_bands=50)
-    basis_f = PlaneWaveBasis(basis, Ecut_fermi)
-    ρf = DFTK.transfer_density(ρ, basis, basis_f)
-
-    if basis.model.temperature ≤ 0.3
-        try
-            nbands_f = AdaptiveBands(basis_f.model).n_bands_compute + extra_bands
-            ham_f = Hamiltonian(basis_f; ρ=ρf)
-            eigres_f = diagonalize_all_kblocks(lobpcg_hyper, ham_f, nbands_f; ψguess=nothing)
-
-            _, εF = DFTK.compute_occupation(basis_f, eigres_f.λ)
-        catch e
-            εF = compute_fermi_level(basis_f; ρ=ρf, tol_cheb=1e-4, tol_n_elec=1e-4)
-        end
-    else
-        εF = compute_fermi_level(basis_f; ρ=ρf, tol_cheb=1e-4, tol_n_elec=1e-4)
-    end
-
-    return εF
+    return elapsed, ρout
 end
