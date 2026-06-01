@@ -18,6 +18,7 @@ Here are some examples showing how to use the packge.
 ```julia
 using SDFT
 using DFTK
+include("test/testcase.jl")
 
 # Define the model and basis
 Ecut = 10
