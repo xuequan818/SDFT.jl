@@ -6,8 +6,9 @@ function run_ks_time(Ecut, temperature, repeat;
                      kgrid=[1,1,1],
                      Ecut_fermi=min(10,Ecut),
                      Ecut_coarse=35*prod(repeat)^(-2/3),
-                     max_band_fraction=0.33)
-    basis = silicon_setup(repeat; Ecut, temperature, kgrid)
+                     max_band_fraction=0.33, sys="silicon")
+    fun = eval(Symbol(sys, "_setup"))
+    basis = fun(repeat; Ecut, temperature, kgrid)
     dof = take_dof(basis)
     ρ = guess_density(basis)
     εF = estimate_fermi(basis, ρ; Ecut_fermi)
@@ -45,8 +46,10 @@ end
 
 function run_mlmcpd_time(L, Ecut, temperature, repeat; 
                          Ns=100, kgrid=[1, 1, 1], 
-                         Ecut_fermi=min(10,Ecut), kws...)
-    basis = silicon_setup(repeat; Ecut, temperature, kgrid)
+                         Ecut_fermi=min(10,Ecut), 
+                         sys="silicon", kws...)
+    fun = eval(Symbol(sys, "_setup"))
+    basis = fun(repeat; Ecut, temperature, kgrid)
     ρ = guess_density(basis)
     εF = estimate_fermi(basis, ρ; Ecut_fermi)
 
@@ -62,8 +65,10 @@ end
 
 function run_mlmcec_time(L, Ecut, temperature, repeat; 
                          Ns=100, kgrid=[1, 1, 1], 
-                         Ecut_fermi=min(10,Ecut), kws...)
-    basis = silicon_setup(repeat; Ecut, temperature, kgrid)
+                         Ecut_fermi=min(10,Ecut), 
+                         sys="silicon", kws...)
+    fun = eval(Symbol(sys, "_setup"))
+    basis = fun(repeat; Ecut, temperature, kgrid)
     ρ = guess_density(basis)
     εF = estimate_fermi(basis, ρ; Ecut_fermi)
 

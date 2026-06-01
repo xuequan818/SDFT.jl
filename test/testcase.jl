@@ -21,6 +21,26 @@ function silicon_setup(repeats=[1, 1, 1]; Ecut=7.0, kgrid=[1, 1, 1], temperature
     PlaneWaveBasis(model; Ecut, kgrid)
 end
 
+function silicon_doping_setup(repeats=[1, 1, 1]; Ecut=7.0, 
+                              kgrid=[1, 1, 1], temperature=1e-3,
+                              dp_ratio=0.02)
+    basis = silicon_setup(repeats; Ecut, kgrid, temperature)
+    lattice = basis.model.lattice
+    positions = basis.model.positions
+    atoms = basis.model.atoms
+
+    psp = PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth")
+    ndp = max(Int(round(length(atoms) * dp_ratio)), 1)
+    ind_dp = sample(1:length(atoms), ndp, replace=false)
+    for idp in ind_dp
+        atoms[idp] = ElementPsp(:C, psp)
+    end
+
+    model = model_DFT(lattice, atoms, positions; functionals=PBE(), 
+                      temperature, symmetries=false)
+    PlaneWaveBasis(model; Ecut, kgrid)
+end
+
 ## graphene-type systems
 
 function graphene_setup(repeats=[1,1]; Ecut=7.0, temperature=1e-3, 
