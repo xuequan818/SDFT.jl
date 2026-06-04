@@ -5,7 +5,7 @@ include("testcase.jl")
 
 function run_ks_time(model, Ecut, repeat, ρ, εF;
                      kgrid=[1,1,1], max_band_fraction=0.33,
-                     Ecut_coarse=35*prod(repeat)^(-2/3))
+                     Ecut_coarse=15*prod(repeat)^(-2/3))
     basis = PlaneWaveBasis(model; Ecut, kgrid)
     dof = take_dof(basis)
 

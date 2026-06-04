@@ -85,7 +85,7 @@ function run_var(Nmax::Int; sys="graphene",
             ρ = scfres.ρ
             εF = scfres.εF
 
-            @time var = estimate_var(basis, εF, MC(Ns); M, tol_cheb, ρ, cal_way)[1]
+            @time var = estimate_var(basis, εF, MC(Ns); M, tol_cheb, ρ, cal_way)[1][1]
             @time varT = sdft_var_theory(scfres)
 
             push!(Var, var)

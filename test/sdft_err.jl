@@ -26,13 +26,13 @@ function run_err_rho(Ns; sys="graphene",
         ρ = scfres.ρ
 
         smearf = FermiDirac(εF, inv(temperature))
-        hambl = [iham.blocks[1] for iham in SDFT.sdft_hamiltonian(basis, CT(); ρ)];
-        Cheb = chebyshev_info(hambl[end], smearf, M, cal_way; ρ, tol_cheb);
+        ham = Hamiltonian(basis; ρ)
+        Cheb = chebyshev_info(ham.blocks[1], smearf, M, cal_way; ρ, tol_cheb);
 
         err = Float64[]
         for ns in Ns
             println(" Ns = $ns")
-            @time ρmc = compute_stoc_density(basis, hambl, Cheb, MC(ns); cal_way);
+            @time ρmc = compute_stoc_density(basis, Cheb, MC(ns); cal_way, ρ)
             push!(err, norm(ρmc - ρ) * sqrt(basis.dvol))
         end
         push!(Error, err)
