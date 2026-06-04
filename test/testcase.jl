@@ -9,35 +9,30 @@ using Distributions
 
 ## 3D systems
 
-function silicon_setup(repeats=[1, 1, 1]; Ecut=7.0, kgrid=[1, 1, 1], temperature=1e-3)
+function silicon_setup(repeats=[1, 1, 1]; Ecut=7.0, 
+                       kgrid=[1, 1, 1], temperature=1e-3,
+                       dp_ratio=0.0, el_dp=nothing)
     ## Use AtomsBuilder to setup silicon cubic unit cell (8 Si atoms)
     ## with provided lattice constant, see [AtomsBase integration](@ref) for details.
     unit_cell = bulk(:Si; cubic=true)
     supercell = unit_cell * tuple(repeats...)  # Make a supercell
 
-    pseudopotentials = PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth")
-    model = model_DFT(supercell; pseudopotentials, functionals=PBE(),
-                      temperature, symmetries=false)
-    PlaneWaveBasis(model; Ecut, kgrid)
-end
-
-function silicon_doping_setup(repeats=[1, 1, 1]; Ecut=7.0, 
-                              kgrid=[1, 1, 1], temperature=1e-3,
-                              dp_ratio=0.02)
-    basis = silicon_setup(repeats; Ecut, kgrid, temperature)
-    lattice = basis.model.lattice
-    positions = basis.model.positions
-    atoms = basis.model.atoms
-
     psp = PseudoFamily("cp2k.nc.sr.pbe.v0_1.semicore.gth")
-    ndp = max(Int(round(length(atoms) * dp_ratio)), 1)
-    ind_dp = sample(1:length(atoms), ndp, replace=false)
-    for idp in ind_dp
-        atoms[idp] = ElementPsp(:C, psp)
+    model = model_DFT(supercell; pseudopotentials=psp, functionals=PBE(),
+                      temperature, symmetries=false)
+
+    if dp_ratio > 0 && !isnothing(el_dp)
+        atoms = model.atoms
+        ndp = max(Int(round(length(atoms) * dp_ratio)), 1)
+        ind_dp = sample(1:length(atoms), ndp, replace=false)
+        for idp in ind_dp
+            atoms[idp] = ElementPsp(el_dp, psp)
+        end
+
+        model = model_DFT(model.lattice, atoms, model.positions;
+                          functionals=PBE(), temperature, symmetries=false)
     end
 
-    model = model_DFT(lattice, atoms, positions; functionals=PBE(), 
-                      temperature, symmetries=false)
     PlaneWaveBasis(model; Ecut, kgrid)
 end
 
