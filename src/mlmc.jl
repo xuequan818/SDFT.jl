@@ -125,7 +125,7 @@ function mlmc_cost(ecl::Function, basis::PlaneWaveBasis,
                    c1, c2, ::OptimalEC{N}) where {N}
     dim = basis.model.n_dim
     Vl(l) = c1 * exp(-2 * c2 * sqrt(ecl(l)))
-    Cl(l) = ecl(l)^(dim / 2)
+    Cl(l) = ecl(l)^(dim / 2) * log(1 + ecl(l)^(dim / 2))
       
     cost = basis.model.n_electrons * sqrt(Cl(0))
     for l = 1:N-1
@@ -134,6 +134,7 @@ function mlmc_cost(ecl::Function, basis::PlaneWaveBasis,
 
     return cost
 end
+
 
 function estimate_fermi(basis, ρ; Ecut_fermi=10, extra_bands=100)
     basis_f = PlaneWaveBasis(basis, Ecut_fermi)

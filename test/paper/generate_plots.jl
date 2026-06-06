@@ -142,6 +142,7 @@ sdft_density_error = let
     end
 end
 
+xlog(x) = x*log(x)
 mlmc_pd_cost = let
     pdplot = [(; marker="v", s=100, alpha=0.9, color="C0"),
         (; marker="D", s=100, alpha=0.9, color="C1"),
@@ -161,8 +162,13 @@ mlmc_pd_cost = let
         Ne = data_cost["Ne_mat"][ind, :, :]
         ns = data_cost["ns_mat"][ind, :, :]
         Ms = data_cost["Ms_mat"][ind, :, :]
-        pd_t = data_cost["mlmc_time"][ind, :, :]
-        mc_t = data_cost["mc_time"][ind, :, :]
+        Ql = data_cost["Ql_mat"][ind, :, :]
+        vars = data_cost["var_mat"][ind, :, :]
+        Cl = @. Ql * xlog(ns)
+        pd_t = zeros(size(Cl)...)
+        for i in eachindex(pd_t)
+            pd_t[i] = sum(sqrt.(Cl[i] .* vars[i][1]))^2 / Ne[i]
+        end
         temperatures = data_cost["temperatures"]
         M0 = data_cost["Ql_mat"][1][1]
 
@@ -170,12 +176,12 @@ mlmc_pd_cost = let
 
         fig, ax = plt.subplots(figsize=(figsize[1], figsize[2]))
         for (j, tp) in enumerate(temperatures)
-            xs = M0 .* Ne[:, :, j] .* ns[:, :, j]
+            xs = M0 .* Ne[:, :, j] .* xlog.(ns[:, :, j])
             ib = Int(log10(inv(tp)))
             ax.scatter(xs, pd_t[:, :, j], label=L"\beta=10^%$ib"; pdplot[j]...)
         end
 
-        xxs = sort(unique(M0 .* Ne .* ns))
+        xxs = sort(unique(M0 .* Ne .* xlog.(ns)))
         if i == 1
             k = 1.3
         elseif i == 2
@@ -192,7 +198,7 @@ mlmc_pd_cost = let
         ax.set_xscale("log")
         ax.set_xlim(10^(log10(xxs[1]) - 0.2), 10^(log10(xxs[end]) + 0.2))
         ax.legend()
-        ax.set_xlabel(L"nNM^{(0)}")
+        ax.set_xlabel(L"NM^{(0)}n \log n")
         ax.set_ylabel("Cost")
 
         if i == 1
@@ -205,7 +211,7 @@ mlmc_pd_cost = let
         #ax.set_title("$(title_c)")
 
         fig.tight_layout()
-        filename = joinpath(IMAGE_DIR, "pdml_cost_$i.pdf")
+        filename = joinpath(IMAGE_DIR, "pdml_cost_$(i).pdf")
         fig.savefig(filename, bbox_inches="tight")
         println("Saved plot: $filename")
     end
@@ -227,22 +233,37 @@ mlmc_ec_cost = let
         Nefull = data_cost["Ne_mat"][:, 1, 1]
         ind = indexin(unique(Nefull), Nefull)
         Ecuts = data_cost["Ecuts"]
+        vars = data_cost["var_mat"][ind, :, :]
         Ne = data_cost["Ne_mat"][ind, :, :]
         ns = data_cost["ns_mat"][ind, :, :]
         Ms = data_cost["Ms_mat"][ind, :, :]
         n0 = data_cost["n0_mat"][ind, :, :]
-        ec_t = data_cost["mlmc_time"][ind, :, :]
-        mc_t = data_cost["mc_time"][ind, :, :]
+        dofl = data_cost["dofl_mat"][ind, :, :]
+
+        function fc2(nl)
+            Cl = [xlog(nl[1])]
+            for l = 2:length(nl)
+                push!(Cl, xlog(nl[l]) + xlog(nl[l-1]))
+            end
+
+            Cl
+        end
+        Cl = @. Ms * fc2.(dofl)
+        ec_t = zeros(size(Cl)...)
+        for i in eachindex(ec_t)
+            ec_t[i] = sum(sqrt.(Cl[i] .* vars[i][1]))^2 / Ne[i]
+        end
+
 
         fig, ax = plt.subplots(figsize=(figsize[1], figsize[2]))
         for (ei, ecut) in enumerate(Ecuts)
-            xs = n0[:, ei, :] .* Ne[:, ei, :] .* Ms[:, ei, :]
+            xs = xlog.(n0[:, ei, :]) .* Ne[:, ei, :] .* Ms[:, ei, :]
             ax.scatter(xs, ec_t[:, ei, :], label=L"E_{\rm c}=%$ecut"; ecplot[ei]...)
         end
 
         plt.rc("legend", fontsize=20, frameon=false)
 
-        xxs = sort(unique(Ne .* n0 .* Ms))
+        xxs = sort(unique(Ne .* xlog.(n0) .* Ms))
         if i == 1
             ks = 1.2
         elseif i == 2
@@ -259,7 +280,7 @@ mlmc_ec_cost = let
         #ax.set_xticks(10 .^ [6, 7, 8])
         #ax.set_xticklabels([L"10^{6}", L"10^{7}", L"10^{8}"])
         ax.legend()
-        ax.set_xlabel(L"n^{(0)}NM")
+        ax.set_xlabel(L"NMn^{(0)} \log n^{(0)}")
         ax.set_ylabel("Cost")
 
         if i == 1
@@ -271,7 +292,7 @@ mlmc_ec_cost = let
         end
 
         fig.tight_layout()
-        filename = joinpath(IMAGE_DIR, "ecml_cost_$i.pdf")
+        filename = joinpath(IMAGE_DIR, "ecml_cost_$(i).pdf")
         fig.savefig(filename, bbox_inches="tight")
         println("Saved plot: $filename")
     end
@@ -392,7 +413,7 @@ mlmc_vs_dft_log = let
             linewidth=1.5,
             marker="*",
             markersize=10,
-            label="KS-DFT")
+            label="standard DFT")
         plt.rc("legend", fontsize=20, frameon=false)
 
         ax.legend()
@@ -436,7 +457,7 @@ mlmc_vs_dft = let
             linewidth=1.5,
             marker="*",
             markersize=10,
-            label="KS-DFT")
+            label="standard DFT")
         ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0), useMathText=true)
         plt.rc("legend", fontsize=20, frameon=false)
 
