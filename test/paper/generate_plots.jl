@@ -386,60 +386,16 @@ mlmc_ec_var = let
     end
 end
 
-mlmc_vs_dft_log = let
-    for (i, ic) in enumerate(CASES_3D)
-        data_ks = load(joinpath.(DATA_DIR, "ks_time_$(ic).jld2"))
-        data_ec = load(joinpath.(DATA_DIR, "mlmcec_time_$(ic).jld2"))
-        data_pd = load(joinpath.(DATA_DIR, "mlmcpd_time_$(ic).jld2"))
-
-        xs = data_ec["Ne"]
-        ks_time = data_ks["cpu_times"]
-        ec_time = data_ec["cpu_times"]
-        pd_time = data_pd["cpu_times"]
-
-        fig, ax = plt.subplots(figsize=(figsize[1], figsize[2]))
-        
-        ax.plot(xs, ec_time, linestyle="-",
-            linewidth=1.5,
-            marker="o",
-            markersize=8,
-            label="energy cutoffs")
-        ax.plot(xs, pd_time, linestyle="-",
-            linewidth=1.5,
-            marker="^",
-            markersize=8,
-            label="polynomial orders")
-        ax.plot(xs[1:length(ks_time)], ks_time, linestyle="-",
-            linewidth=1.5,
-            marker="*",
-            markersize=10,
-            label="standard DFT")
-        plt.rc("legend", fontsize=20, frameon=false)
-
-        ax.legend()
-        ax.set_xscale("log")
-        ax.set_yscale("log")
-        ax.set_xlabel(L"N")
-        ax.set_ylabel("Wall time (s)")
-
-
-        fig.tight_layout()
-        filename = joinpath(IMAGE_DIR, "wall_time_log_$i.pdf")
-        fig.savefig(filename, bbox_inches="tight")
-        println("Saved plot: $filename")
-    end
-end
-
 mlmc_vs_dft = let
     for (i, ic) in enumerate(CASES_3D)
         data_ks = load(joinpath.(DATA_DIR, "ks_time_$(ic).jld2"))
         data_ec = load(joinpath.(DATA_DIR, "mlmcec_time_$(ic).jld2"))
         data_pd = load(joinpath.(DATA_DIR, "mlmcpd_time_$(ic).jld2"))
 
-        xs = data_ec["Ne"]
-        ks_time = data_ks["cpu_times"]
-        ec_time = data_ec["cpu_times"]
-        pd_time = data_pd["cpu_times"]
+        xs = data_ec["Ne"][2:end]
+        ks_time = data_ks["cpu_times"][2:end]
+        ec_time = data_ec["cpu_times"][2:end]
+        pd_time = data_pd["cpu_times"][2:end]
 
         fig, ax = plt.subplots(figsize=(figsize[1], figsize[2]))
 
@@ -447,20 +403,21 @@ mlmc_vs_dft = let
             linewidth=1.5,
             marker="o",
             markersize=8,
-            label="energy cutoffs")
+            label="energy-cutoff MLMC")
         ax.plot(xs, pd_time, linestyle="-",
             linewidth=1.5,
             marker="^",
             markersize=8,
-            label="polynomial orders")
+            label="polynomial-order MLMC")
         ax.plot(xs[1:length(ks_time)], ks_time, linestyle="-",
             linewidth=1.5,
             marker="*",
             markersize=10,
             label="standard DFT")
         ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 0), useMathText=true)
-        plt.rc("legend", fontsize=20, frameon=false)
+        plt.rc("legend", fontsize=19, frameon=false)
 
+        ax.set_xlim(0, 1200)
         ax.set_ylim(-500, 1.5e4)
         ax.set_yticks([0, 0.5e4, 1e4, 1.5e4])
         ax.legend()
@@ -480,17 +437,16 @@ mlmc_error = let
         data_file = joinpath.(DATA_DIR, "ks_time_$(ic).jld2")
         @load data_file Ne ec_errs pd_errs
 
-        xs = Ne
+        xs = Ne[2:end]
         fig, ax = plt.subplots(figsize=(figsize[1], figsize[2]))
         plt.rc("legend", fontsize=19, frameon=false)
-        ax.scatter(xs, ec_errs, marker="o", s=80, alpha=0.9, label="energy cutoffs")
-        ax.scatter(xs, pd_errs, marker="^", s=80, alpha=0.9, label="polynomial orders")
-        xs2 = minimum(xs)-5:100:maximum(xs)+300
+        ax.scatter(xs, ec_errs[2:end], marker="o", s=80, alpha=0.9, label="energy-cutoff MLMC")
+        ax.scatter(xs, pd_errs[2:end], marker="^", s=80, alpha=0.9, label="polynomial-order MLMC")
         ax.axhline(0.1, label=""; linefit...)
+        ax.set_xlim(0, 1090)
         ax.set_ylim(0, 0.2)
         ax.set_yticks([0, 0.1, 0.2])
         ax.legend()
-        ax.set_xscale("log")
         ax.set_xlabel(L"N")
         ax.set_ylabel(L"\|\rho_{\mathbb{S}}-\rho\|_{L^2(\Omega)}")
 
@@ -507,10 +463,10 @@ mlmc_vs_mc = let
         data_ec = load(joinpath.(DATA_DIR, "mlmcec_time_$(ic).jld2"))
         data_pd = load(joinpath.(DATA_DIR, "mlmcpd_time_$(ic).jld2"))
 
-        xs = data_ec["Ne"]
-        mc_time = data_mc["cpu_times"]
-        ec_time = data_ec["cpu_times"]
-        pd_time = data_pd["cpu_times"]
+        xs = data_ec["Ne"][2:end]
+        mc_time = data_mc["cpu_times"][2:end]
+        ec_time = data_ec["cpu_times"][2:end]
+        pd_time = data_pd["cpu_times"][2:end]
 
         fig, ax = plt.subplots(figsize=(figsize[1], figsize[2]))
 
@@ -518,19 +474,18 @@ mlmc_vs_mc = let
             linewidth=1,
             marker="o",
             markersize=8,
-            label="energy cutoffs")
+            label="energy-cutoff MLMC")
         ax.plot(xs, mc_time ./ pd_time, linestyle="--",
             linewidth=1,
             marker="^",
             markersize=8,
-            label="polynomial orders")
-        plt.rc("legend", fontsize=20, frameon=false)
+            label="polynomial-order MLMC")
+        plt.rc("legend", fontsize=17, frameon=false)
 
-        ax.set_ylim(0.4, 9)
+        ax.set_xlim(0, 1200)
+        ax.set_ylim(1., 9.)
 
         ax.legend()
-        ax.set_xscale("log")
-        # ax.set_yscale("log")
         ax.set_xlabel(L"N")
         ax.set_ylabel("Time sDFT/ Time MLMC")
 
